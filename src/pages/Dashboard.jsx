@@ -1,497 +1,405 @@
+// src/pages/Dashboard.jsx - COMPLETE & CORRECTED VERSION
+// Includes: Client360Modal with loans + transactions, dd-mm-yyyy date format
+
 import React, { useState, useEffect } from 'react';
-import { getLoansWithClientNames, getClients, updateLoan, updateClient, getTransactionsForLoan, getLoansForClient, addLoan, addClient, getLoanProducts, createLoanProduct, getClientLoans, getNextLoanNumber } from '../services/supabaseService';
+import { supabase } from '../services/supabaseService';
 
-export default function Dashboard() {
-  const [loans, setLoans] = useState([]);
-  const [clients, setClients] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedLoan, setSelectedLoan] = useState(null);
-  const [selectedClient, setSelectedClient] = useState(null);
-  const [showAddLoan, setShowAddLoan] = useState(false);
-  const [showAddClient, setShowAddClient] = useState(false);
+// Helper function to format dates as dd-mm-yyyy
+const formatDate = (dateStr) => {
+  if (!dateStr) return 'N/A';
+  const date = new Date(dateStr);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
+};
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+const Client360Modal = ({ client, onClose }) => {
+  const [clientLoans, setClientLoans] = React.useState([]);
+  const [clientTransactions, setClientTransactions] = React.useState([]);
+  const [loadingLoans, setLoadingLoans] = React.useState(true);
 
-  const fetchData = async () => {
+  React.useEffect(() => {
+    const fetchClientData = async () => {
+      if (!client?.id) return;
+
+      try {
+        // Fetch all loans for this client
+        const { data: loansData, error: loansError } = await supabase
+          .from('loans')
+          .select('*')
+          .eq('client_id', client.id)
+          .order('created_at', { ascending: false });
+
+        if (!loansError && loansData) {
+          setClientLoans(loansData);
+
+          // Fetch transactions for all this client's loans
+          const loanIds = loansData.map(l => l.id);
+          if (loanIds.length > 0) {
+            const { data: txnData } = await supabase
+              .from('transactions')
+              .select('*')
+              .in('loan_id', loanIds)
+              .order('txn_date', { ascending: false })
+              .limit(10);
+
+            if (txnData) {
+              setClientTransactions(txnData);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching client data:', error);
+      } finally {
+        setLoadingLoans(false);
+      }
+    };
+
+    fetchClientData();
+  }, [client]);
+
+  if (!client) return null;
+
+  // Helper function to parse allocation breakdown JSON
+  const parseAllocation = (allocationStr) => {
     try {
-      setLoading(true);
-      const [loanData, clientData] = await Promise.all([
-        getLoansWithClientNames(),
-        getClients()
-      ]);
-      setLoans(loanData || []);
-      setClients(clientData || []);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
+      return JSON.parse(allocationStr);
+    } catch {
+      return { interest: 0, principal: 0, fees: 0 };
     }
   };
 
+  const totalOutstanding = clientLoans.reduce((sum, loan) => {
+    return sum + (parseFloat(loan.balance) || 0);
+  }, 0);
+
   return (
-    <div style={{ padding: '2rem', backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
-      <h1>💰 Dashboard</h1>
-      
-      <div style={{ marginBottom: '2rem' }}>
-        <button onClick={() => setShowAddLoan(true)} style={btnStyle}>➕ Add Loan</button>
-        <button onClick={() => setShowAddClient(true)} style={btnStyle}>➕ Add Client</button>
-        <button onClick={fetchData} style={btnStyle}>🔄 Refresh</button>
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0,0,0,0.7)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2000,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: '#fff',
+          padding: '2rem',
+          borderRadius: '12px',
+          maxWidth: '900px',
+          width: '95%',
+          maxHeight: '90vh',
+          overflow: 'auto',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* HEADER */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '2px solid #0176d3', paddingBottom: '1rem' }}>
+          <h2 style={{ margin: 0, color: '#181818', fontSize: '1.6rem' }}>Client 360 - {client.first_name} {client.last_name}</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+        </div>
+
+        {/* PERSONAL & ADDRESS DETAILS */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+          {/* Personal Details */}
+          <div style={{ border: '1px solid #dee2e6', padding: '1rem', borderRadius: '6px' }}>
+            <h3 style={{ margin: '0 0 1rem 0', color: '#0176d3', fontSize: '0.95rem', fontWeight: '600' }}>Personal Details</h3>
+            <div style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>
+              <p style={{ margin: '0.3rem 0' }}><strong>Code:</strong> {client.client_code || 'N/A'}</p>
+              <p style={{ margin: '0.3rem 0' }}><strong>Name:</strong> {client.first_name} {client.last_name}</p>
+              <p style={{ margin: '0.3rem 0' }}><strong>Email:</strong> {client.email || 'N/A'}</p>
+              <p style={{ margin: '0.3rem 0' }}><strong>Phone:</strong> {client.phone || 'N/A'}</p>
+              <p style={{ margin: '0.3rem 0' }}><strong>Status:</strong> <span style={{ textTransform: 'capitalize' }}>{client.status || 'active'}</span></p>
+            </div>
+          </div>
+
+          {/* Address */}
+          <div style={{ border: '1px solid #dee2e6', padding: '1rem', borderRadius: '6px' }}>
+            <h3 style={{ margin: '0 0 1rem 0', color: '#0176d3', fontSize: '0.95rem', fontWeight: '600' }}>Address</h3>
+            <div style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>
+              <p style={{ margin: '0.3rem 0' }}>{client.address || 'N/A'}</p>
+              <p style={{ margin: '0.3rem 0' }}>{client.city || ''} {client.postcode || ''}</p>
+              <p style={{ margin: '0.3rem 0' }}>{client.country || 'N/A'}</p>
+            </div>
+          </div>
+
+          {/* Employment Info */}
+          <div style={{ border: '1px solid #dee2e6', padding: '1rem', borderRadius: '6px' }}>
+            <h3 style={{ margin: '0 0 1rem 0', color: '#0176d3', fontSize: '0.95rem', fontWeight: '600' }}>Employment</h3>
+            <div style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>
+              <p style={{ margin: '0.3rem 0' }}><strong>Status:</strong> <span style={{ textTransform: 'capitalize' }}>{client.employment_status || 'N/A'}</span></p>
+              <p style={{ margin: '0.3rem 0' }}><strong>Monthly Income:</strong> ${parseFloat(client.monthly_income || 0).toFixed(2)}</p>
+            </div>
+          </div>
+
+          {/* ID Details */}
+          <div style={{ border: '1px solid #dee2e6', padding: '1rem', borderRadius: '6px' }}>
+            <h3 style={{ margin: '0 0 1rem 0', color: '#0176d3', fontSize: '0.95rem', fontWeight: '600' }}>Identification</h3>
+            <div style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>
+              <p style={{ margin: '0.3rem 0' }}><strong>Type:</strong> <span style={{ textTransform: 'capitalize' }}>{client.id_type || 'N/A'}</span></p>
+              <p style={{ margin: '0.3rem 0' }}><strong>Number:</strong> {client.id_number || 'N/A'}</p>
+              <p style={{ margin: '0.3rem 0' }}><strong>DOB:</strong> {formatDate(client.date_of_birth)}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* LOANS SUMMARY */}
+        <div style={{ marginBottom: '2rem', borderTop: '2px solid #dee2e6', paddingTop: '1.5rem' }}>
+          <h3 style={{ margin: '0 0 1rem 0', color: '#181818', fontSize: '1.1rem', fontWeight: '600' }}>
+            Loans ({clientLoans.length})
+            {totalOutstanding > 0 && <span style={{ color: '#dc3545', marginLeft: '0.5rem' }}>Outstanding: ${totalOutstanding.toFixed(2)}</span>}
+          </h3>
+
+          {loadingLoans ? (
+            <p style={{ color: '#706e6b' }}>Loading loans...</p>
+          ) : clientLoans.length === 0 ? (
+            <p style={{ color: '#706e6b' }}>No loans found for this client</p>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '1px solid #dee2e6' }}>
+                  <th style={{ padding: '0.6rem', textAlign: 'left', fontWeight: '600' }}>Loan #</th>
+                  <th style={{ padding: '0.6rem', textAlign: 'left', fontWeight: '600' }}>Balance</th>
+                  <th style={{ padding: '0.6rem', textAlign: 'left', fontWeight: '600' }}>Status</th>
+                  <th style={{ padding: '0.6rem', textAlign: 'left', fontWeight: '600' }}>Opened</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clientLoans.map((loan) => (
+                  <tr key={loan.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                    <td style={{ padding: '0.6rem' }}>{loan.loan_number || 'N/A'}</td>
+                    <td style={{ padding: '0.6rem' }}>${parseFloat(loan.balance || 0).toFixed(2)}</td>
+                    <td style={{ padding: '0.6rem', textTransform: 'capitalize' }}>{loan.status || 'active'}</td>
+                    <td style={{ padding: '0.6rem' }}>{formatDate(loan.date_open)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* RECENT TRANSACTIONS */}
+        <div style={{ marginBottom: '2rem' }}>
+          <h3 style={{ margin: '0 0 1rem 0', color: '#181818', fontSize: '1.1rem', fontWeight: '600' }}>
+            Recent Transactions ({clientTransactions.length})
+          </h3>
+
+          {clientTransactions.length === 0 ? (
+            <p style={{ color: '#706e6b' }}>No transactions found</p>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '1px solid #dee2e6' }}>
+                  <th style={{ padding: '0.6rem', textAlign: 'left', fontWeight: '600' }}>Date</th>
+                  <th style={{ padding: '0.6rem', textAlign: 'left', fontWeight: '600' }}>Type</th>
+                  <th style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '600' }}>Amount</th>
+                  <th style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '600' }}>Fees</th>
+                  <th style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '600' }}>Interest</th>
+                  <th style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '600' }}>Principal</th>
+                  <th style={{ padding: '0.6rem', textAlign: 'left', fontWeight: '600' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clientTransactions.map((txn) => {
+                  const allocation = parseAllocation(txn.allocation_breakdown);
+                  return (
+                    <tr key={txn.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                      <td style={{ padding: '0.6rem' }}>{formatDate(txn.txn_date)}</td>
+                      <td style={{ padding: '0.6rem', textTransform: 'capitalize' }}>{txn.txn_type || 'N/A'}</td>
+                      <td style={{ padding: '0.6rem', textAlign: 'right' }}>${parseFloat(txn.amount || 0).toFixed(2)}</td>
+                      <td style={{ padding: '0.6rem', textAlign: 'right' }}>${parseFloat(allocation.fees || allocation.establishment_fee || 0).toFixed(2)}</td>
+                      <td style={{ padding: '0.6rem', textAlign: 'right' }}>${parseFloat(allocation.interest || 0).toFixed(2)}</td>
+                      <td style={{ padding: '0.6rem', textAlign: 'right' }}>${parseFloat(allocation.principal || 0).toFixed(2)}</td>
+                      <td style={{ padding: '0.6rem' }}>{txn.processing_status || 'N/A'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <button onClick={onClose} style={{ padding: '0.6rem 1.2rem', background: '#0176d3', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '500' }}>Close</button>
+      </div>
+    </div>
+  );
+};
+
+const LoanDetailsModal = ({ loan, onClose }) => {
+  if (!loan) return null;
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500 }} onClick={onClose}>
+      <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '600px', width: '95%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }} onClick={(e) => e.stopPropagation()}>
+        <h2 style={{ margin: '0 0 1.5rem 0', color: '#181818', fontSize: '1.6rem', borderBottom: '2px solid #0176d3', paddingBottom: '1rem' }}>Loan Details</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+          <div>
+            <p style={{ margin: '0.5rem 0', color: '#706e6b', fontWeight: '600', fontSize: '0.85rem' }}>Loan Number:</p>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: '#181818' }}>{loan.loan_number || 'N/A'}</p>
+          </div>
+          <div>
+            <p style={{ margin: '0.5rem 0', color: '#706e6b', fontWeight: '600', fontSize: '0.85rem' }}>Client:</p>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: '#181818' }}>{loan.client_name || 'Unknown'}</p>
+          </div>
+          <div>
+            <p style={{ margin: '0.5rem 0', color: '#706e6b', fontWeight: '600', fontSize: '0.85rem' }}>Balance:</p>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: '#181818' }}>${loan.balance?.toFixed(2) || '0.00'}</p>
+          </div>
+          <div>
+            <p style={{ margin: '0.5rem 0', color: '#706e6b', fontWeight: '600', fontSize: '0.85rem' }}>Status:</p>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: '#181818', textTransform: 'capitalize' }}>{loan.status || 'active'}</p>
+          </div>
+          <div>
+            <p style={{ margin: '0.5rem 0', color: '#706e6b', fontWeight: '600', fontSize: '0.85rem' }}>Opened:</p>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: '#181818' }}>{formatDate(loan.date_open)}</p>
+          </div>
+        </div>
+        <button onClick={onClose} style={{ padding: '0.6rem 1.2rem', background: '#0176d3', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '500' }}>Close</button>
+      </div>
+    </div>
+  );
+};
+
+const styles = {
+  container: { padding: '1.5rem', backgroundColor: '#f8f9fa', minHeight: '100vh' },
+  metricsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' },
+  metricCard: { backgroundColor: '#ffffff', borderRadius: '8px', padding: '1rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', textAlign: 'center' },
+  cardBorderBlue: { borderTop: '4px solid #0176d3' },
+  cardTitle: { fontSize: '0.85rem', color: '#706e6b', margin: 0 },
+  cardValue: { fontSize: '1.8rem', fontWeight: 'bold', color: '#181818', margin: 0 },
+  table: { width: '100%', borderCollapse: 'collapse', backgroundColor: '#ffffff', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' },
+  th: { backgroundColor: '#0176d3', color: '#ffffff', padding: '0.6rem 0.5rem', textAlign: 'left', fontSize: '0.8rem', fontWeight: '600' },
+  td: { padding: '0.5rem', borderBottom: '1px solid #dee2e6', fontSize: '0.8rem' },
+};
+
+const Dashboard = () => {
+  const [loans, setLoans] = useState([]);
+  const [allLoans, setAllLoans] = useState([]);
+  const [clientsMap, setClientsMap] = useState({});
+  const [metrics, setMetrics] = useState({ totalOutstanding: 0, paymentsToday: 0, overdueLoans: 0 });
+  const [selectedLoan, setSelectedLoan] = useState(null);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Fetch all loans
+        const { data: loansData } = await supabase.from('loans').select('*').order('created_at', { ascending: false });
+        
+        // Fetch all clients
+        const { data: clientsData } = await supabase.from('clients').select('*');
+
+        // Create client map
+        const cMap = {};
+        (clientsData || []).forEach(c => { cMap[c.id] = c; });
+        setClientsMap(cMap);
+
+        // Enrich loans
+        const enrichedLoans = (loansData || []).map(loan => ({
+          ...loan,
+          client_name: cMap[loan.client_id] ? `${cMap[loan.client_id].first_name} ${cMap[loan.client_id].last_name}` : 'Unknown',
+        }));
+
+        setAllLoans(enrichedLoans);
+
+        // Metrics
+        const outstanding = enrichedLoans.reduce((sum, l) => sum + (parseFloat(l.balance) || 0), 0);
+        const overdue = enrichedLoans.filter(l => l.status === 'overdue').length;
+        setMetrics({ totalOutstanding: outstanding, paymentsToday: 0, overdueLoans: overdue });
+
+        // Paginate
+        const startIdx = (currentPage - 1) * pageSize;
+        setLoans(enrichedLoans.slice(startIdx, startIdx + pageSize));
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [currentPage, pageSize]);
+
+  const totalPages = Math.ceil(allLoans.length / pageSize);
+
+  return (
+    <div style={styles.container}>
+      <div style={styles.metricsGrid}>
+        <div style={{ ...styles.metricCard, ...styles.cardBorderBlue }}>
+          <p style={styles.cardTitle}>Total Outstanding</p>
+          <p style={styles.cardValue}>${metrics.totalOutstanding.toFixed(2)}</p>
+        </div>
+        <div style={{ ...styles.metricCard, ...styles.cardBorderBlue }}>
+          <p style={styles.cardTitle}>Payments Today</p>
+          <p style={styles.cardValue}>{metrics.paymentsToday}</p>
+        </div>
+        <div style={{ ...styles.metricCard, ...styles.cardBorderBlue }}>
+          <p style={styles.cardTitle}>Overdue Loans</p>
+          <p style={styles.cardValue}>{metrics.overdueLoans}</p>
+        </div>
       </div>
 
       {loading ? (
-        <p>Loading...</p>
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#706e6b' }}>Loading loans...</div>
+      ) : allLoans.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#706e6b' }}>No loans found</div>
       ) : (
         <>
-          <h2>📊 Loans ({loans.length})</h2>
-          {loans.length === 0 ? (
-            <p>No loans found</p>
-          ) : (
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>Loan #</th>
-                  <th style={thStyle}>Client</th>
-                  <th style={thStyle}>Balance</th>
-                  <th style={thStyle}>Rate</th>
-                  <th style={thStyle}>Status</th>
-                  <th style={thStyle}>Actions</th>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Loan No.</th>
+                <th style={styles.th}>Client</th>
+                <th style={styles.th}>Balance</th>
+                <th style={styles.th}>Status</th>
+                <th style={styles.th}>Opened</th>
+                <th style={styles.th}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loans.map(loan => (
+                <tr key={loan.id}>
+                  <td style={styles.td}><a href="#" onClick={(e) => { e.preventDefault(); setSelectedLoan(loan); }} style={{ color: '#0176d3', textDecoration: 'underline', cursor: 'pointer' }}>{loan.loan_number || 'N/A'}</a></td>
+                  <td style={styles.td}><a href="#" onClick={(e) => { e.preventDefault(); setSelectedClient(clientsMap[loan.client_id]); }} style={{ color: '#0176d3', textDecoration: 'underline', cursor: 'pointer' }}>{loan.client_name}</a></td>
+                  <td style={styles.td}>${loan.balance?.toFixed(2) || '0.00'}</td>
+                  <td style={styles.td}>{loan.status || 'active'}</td>
+                  <td style={styles.td}>{formatDate(loan.date_open)}</td>
+                  <td style={styles.td}><button onClick={() => setSelectedLoan(loan)} style={{ padding: '0.3rem 0.6rem', background: '#0176d3', color: '#fff', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '0.75rem' }}>View</button></td>
                 </tr>
-              </thead>
-              <tbody>
-                {loans.map((loan, i) => (
-                  <tr key={i}>
-                    <td style={tdStyle}>{loan.loan_number}</td>
-                    <td style={tdStyle}>{loan.client_name}</td>
-                    <td style={tdStyle}>${(loan.balance || 0).toFixed(2)}</td>
-                    <td style={tdStyle}>{loan.interest_rate}%</td>
-                    <td style={tdStyle}>{loan.status}</td>
-                    <td style={tdStyle}>
-                      <button onClick={() => setSelectedLoan(loan)} style={smallBtnStyle}>View</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+              ))}
+            </tbody>
+          </table>
 
-          <h2 style={{ marginTop: '3rem' }}>👥 Clients ({clients.length})</h2>
-          {clients.length === 0 ? (
-            <p>No clients found</p>
-          ) : (
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>Code</th>
-                  <th style={thStyle}>Name</th>
-                  <th style={thStyle}>Email</th>
-                  <th style={thStyle}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clients.map((client, i) => (
-                  <tr key={i}>
-                    <td style={tdStyle}>{client.code}</td>
-                    <td style={tdStyle}>{client.full_name}</td>
-                    <td style={tdStyle}>{client.email}</td>
-                    <td style={tdStyle}>
-                      <button onClick={() => setSelectedClient(client)} style={smallBtnStyle}>View</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <button style={{ padding: '0.5rem 0.75rem', background: '#0176d3', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', opacity: currentPage === 1 ? 0.5 : 1 }} disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>← Previous</button>
+            <span style={{ fontSize: '0.85rem' }}>Page {currentPage} of {totalPages}</span>
+            <button style={{ padding: '0.5rem 0.75rem', background: '#0176d3', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', opacity: currentPage === totalPages ? 0.5 : 1 }} disabled={currentPage === totalPages} onClick={() => setCurrentPage(currentPage + 1)}>Next →</button>
+            <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }} style={{ padding: '0.4rem', borderRadius: '4px', border: '1px solid #0176d3', cursor: 'pointer', fontSize: '0.8rem' }}>
+              <option value={20}>20/page</option>
+              <option value={50}>50/page</option>
+              <option value={100}>100/page</option>
+            </select>
+          </div>
         </>
       )}
 
-      {selectedLoan && <LoanModal loan={selectedLoan} onClose={() => setSelectedLoan(null)} />}
-      {selectedClient && <ClientModal client={selectedClient} onClose={() => setSelectedClient(null)} />}
-      {showAddLoan && <AddLoanModal clients={clients} onClose={() => setShowAddLoan(false)} onSuccess={fetchData} />}
-      {showAddClient && <AddClientModal onClose={() => setShowAddClient(false)} onSuccess={fetchData} />}
+      <LoanDetailsModal loan={selectedLoan} onClose={() => setSelectedLoan(null)} />
+      <Client360Modal client={selectedClient} onClose={() => setSelectedClient(null)} />
     </div>
   );
-}
+};
 
-function AddLoanModal({ clients, onClose, onSuccess }) {
-  const [formData, setFormData] = useState({
-    client_id: '',
-    loan_number: '',
-    product_id: '',
-    principal: '',
-    term: 12,
-    term_unit: 'months',
-    status: 'active'
-  });
-  
-  const [loanProducts, setLoanProducts] = useState([]);
-  const [clientLoans, setClientLoans] = useState([]);
-  const [showAddProduct, setShowAddProduct] = useState(false);
-  const [newProduct, setNewProduct] = useState({ name: '', interest_rate: '' });
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    fetchLoanProducts();
-  }, []);
-
-  useEffect(() => {
-    if (formData.client_id) {
-      fetchClientLoans();
-      generateLoanNumber();
-    }
-  }, [formData.client_id]);
-
-  const fetchLoanProducts = async () => {
-    const data = await getLoanProducts();
-    setLoanProducts(data);
-  };
-
-  const fetchClientLoans = async () => {
-    const data = await getClientLoans(formData.client_id);
-    setClientLoans(data || []);
-  };
-
-  const generateLoanNumber = async () => {
-    const loanNum = await getNextLoanNumber();
-    setFormData(prev => ({ ...prev, loan_number: loanNum }));
-  };
-
-  const handleAddProduct = async (e) => {
-    e.preventDefault();
-    if (!newProduct.name || !newProduct.interest_rate) {
-      alert('Enter product name and interest rate');
-      return;
-    }
-
-    const result = await createLoanProduct({
-      name: newProduct.name,
-      interest_rate: parseFloat(newProduct.interest_rate)
-    });
-
-    if (result) {
-      alert('✅ Product added!');
-      setNewProduct({ name: '', interest_rate: '' });
-      setShowAddProduct(false);
-      fetchLoanProducts();
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.client_id || !formData.loan_number || !formData.product_id || !formData.principal || !formData.term) {
-      alert('Fill all required fields');
-      return;
-    }
-
-    const selectedProduct = loanProducts.find(p => p.id === formData.product_id);
-    
-    setLoading(true);
-    const result = await addLoan({
-      client_id: formData.client_id,
-      loan_number: formData.loan_number,
-      principal: parseFloat(formData.principal),
-      balance: parseFloat(formData.principal),
-      interest_rate: selectedProduct?.interest_rate || 0,
-      term: formData.term,
-      term_unit: formData.term_unit,
-      status: formData.status,
-      date_open: new Date().toISOString().split('T')[0]
-    });
-
-    if (result) {
-      alert('✅ Loan added!');
-      onSuccess();
-      onClose();
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div style={modalOverlay} onClick={onClose}>
-      <div style={{ ...modalContent, maxHeight: '95vh' }} onClick={(e) => e.stopPropagation()}>
-        <div style={modalHeader}>
-          <h2 style={modalTitle}>Add New Loan</h2>
-          <button onClick={onClose} style={closeButton}>✕</button>
-        </div>
-
-        <div style={{ padding: '2rem', overflowY: 'auto', maxHeight: '80vh' }}>
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: '2rem' }}>
-              <h3 style={{ color: '#0176d3', marginBottom: '1rem' }}>📋 Select Client</h3>
-              <label style={label}>Client *</label>
-              <select 
-                value={formData.client_id} 
-                onChange={(e) => setFormData({...formData, client_id: e.target.value})} 
-                style={input} 
-                required
-              >
-                <option value="">Select Client</option>
-                {clients.map(c => (
-                  <option key={c.id} value={c.id}>{c.code} - {c.full_name}</option>
-                ))}
-              </select>
-
-              {clientLoans.length > 0 && (
-                <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
-                  <h4>📋 Existing Loans for this Client</h4>
-                  <table style={tableStyle}>
-                    <thead>
-                      <tr>
-                        <th style={thStyle}>Loan #</th>
-                        <th style={thStyle}>Balance</th>
-                        <th style={thStyle}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {clientLoans.map((l, i) => (
-                        <tr key={i}>
-                          <td style={tdStyle}>{l.loan_number}</td>
-                          <td style={tdStyle}>${(l.balance || 0).toFixed(2)}</td>
-                          <td style={tdStyle}>{l.status}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            <div style={{ marginBottom: '2rem' }}>
-              <h3 style={{ color: '#0176d3', marginBottom: '1rem' }}>💵 Loan Details</h3>
-              <div style={gridTwoCols}>
-                <div>
-                  <label style={label}>Loan Number *</label>
-                  <input 
-                    type="text" 
-                    value={formData.loan_number} 
-                    style={input} 
-                    disabled 
-                    placeholder="Auto-generated"
-                  />
-                </div>
-                <div>
-                  <label style={label}>Principal ($) *</label>
-                  <input 
-                    type="number" 
-                    value={formData.principal} 
-                    onChange={(e) => setFormData({...formData, principal: e.target.value})} 
-                    style={input} 
-                    step="0.01" 
-                    required 
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '2rem' }}>
-              <h3 style={{ color: '#0176d3', marginBottom: '1rem' }}>📊 Interest Rate</h3>
-              <div style={gridTwoCols}>
-                <div>
-                  <label style={label}>Product/Rate *</label>
-                  <select 
-                    value={formData.product_id} 
-                    onChange={(e) => setFormData({...formData, product_id: e.target.value})} 
-                    style={input} 
-                    required
-                  >
-                    <option value="">Select Product</option>
-                    {loanProducts.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} - {p.interest_rate}%
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={label}>&nbsp;</label>
-                  <button 
-                    type="button" 
-                    onClick={() => setShowAddProduct(true)} 
-                    style={{ ...input, backgroundColor: '#0176d3', color: 'white', cursor: 'pointer', padding: '0.75rem' }}
-                  >
-                    ➕ Add New Rate
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '2rem' }}>
-              <h3 style={{ color: '#0176d3', marginBottom: '1rem' }}>⏱️ Loan Term</h3>
-              <div style={gridTwoCols}>
-                <div>
-                  <label style={label}>Duration *</label>
-                  <input 
-                    type="number" 
-                    value={formData.term} 
-                    onChange={(e) => setFormData({...formData, term: parseInt(e.target.value)})} 
-                    style={input} 
-                    required 
-                  />
-                </div>
-                <div>
-                  <label style={label}>Unit *</label>
-                  <select 
-                    value={formData.term_unit} 
-                    onChange={(e) => setFormData({...formData, term_unit: e.target.value})} 
-                    style={input}
-                  >
-                    <option value="months">Months</option>
-                    <option value="fortnights">Fortnights (14 days)</option>
-                    <option value="weeks">Weeks</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div style={modalFooter}>
-              <button type="submit" style={btnStyle} disabled={loading}>
-                {loading ? 'Adding...' : '➕ Add Loan'}
-              </button>
-              <button type="button" onClick={onClose} style={{...btnStyle, backgroundColor: '#666'}}>Cancel</button>
-            </div>
-          </form>
-
-          {showAddProduct && (
-            <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
-              <h3>Create New Interest Rate</h3>
-              <form onSubmit={handleAddProduct}>
-                <input 
-                  placeholder="Product Name (e.g., 'Standard 6-Month')" 
-                  value={newProduct.name} 
-                  onChange={(e) => setNewProduct({...newProduct, name: e.target.value})} 
-                  style={input} 
-                  required 
-                />
-                <input 
-                  placeholder="Interest Rate (%)" 
-                  type="number" 
-                  step="0.01"
-                  value={newProduct.interest_rate} 
-                  onChange={(e) => setNewProduct({...newProduct, interest_rate: e.target.value})} 
-                  style={input} 
-                  required 
-                />
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  <button type="submit" style={btnStyle}>Create Rate</button>
-                  <button type="button" onClick={() => setShowAddProduct(false)} style={{...btnStyle, backgroundColor: '#666'}}>Cancel</button>
-                </div>
-              </form>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LoanModal({ loan, onClose }) {
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const data = await getTransactionsForLoan(loan.id);
-      setTransactions(data || []);
-      setLoading(false);
-    })();
-  }, [loan]);
-
-  return (
-    <div style={modalOverlay} onClick={onClose}>
-      <div style={modalContent} onClick={(e) => e.stopPropagation()}>
-        <h2>Loan: {loan.loan_number}</h2>
-        <p><strong>Client:</strong> {loan.client_name}</p>
-        <p><strong>Principal:</strong> ${(loan.principal || 0).toFixed(2)}</p>
-        <p><strong>Balance:</strong> ${(loan.balance || 0).toFixed(2)}</p>
-        <p><strong>Interest Rate:</strong> {loan.interest_rate}%</p>
-        <p><strong>Status:</strong> {loan.status}</p>
-        <h3>Transactions</h3>
-        {loading ? <p>Loading...</p> : transactions.length === 0 ? <p>No transactions</p> : (
-          <table style={tableStyle}>
-            <thead><tr><th style={thStyle}>Date</th><th style={thStyle}>Amount</th></tr></thead>
-            <tbody>{transactions.map((t, i) => <tr key={i}><td style={tdStyle}>{t.date}</td><td style={tdStyle}>${(t.total || 0).toFixed(2)}</td></tr>)}</tbody>
-          </table>
-        )}
-        <button onClick={onClose} style={btnStyle}>Close</button>
-      </div>
-    </div>
-  );
-}
-
-function ClientModal({ client, onClose }) {
-  const [clientLoans, setClientLoans] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const data = await getLoansForClient(client.id);
-      setClientLoans(data || []);
-      setLoading(false);
-    })();
-  }, [client]);
-
-  return (
-    <div style={modalOverlay} onClick={onClose}>
-      <div style={modalContent} onClick={(e) => e.stopPropagation()}>
-        <h2>Client: {client.code}</h2>
-        <p><strong>Name:</strong> {client.full_name}</p>
-        <p><strong>Email:</strong> {client.email}</p>
-        <h3>Loans</h3>
-        {loading ? <p>Loading...</p> : clientLoans.length === 0 ? <p>No loans</p> : (
-          <table style={tableStyle}>
-            <thead><tr><th style={thStyle}>Loan #</th><th style={thStyle}>Balance</th></tr></thead>
-            <tbody>{clientLoans.map((l, i) => <tr key={i}><td style={tdStyle}>{l.loan_number}</td><td style={tdStyle}>${(l.balance || 0).toFixed(2)}</td></tr>)}</tbody>
-          </table>
-        )}
-        <button onClick={onClose} style={btnStyle}>Close</button>
-      </div>
-    </div>
-  );
-}
-
-function AddClientModal({ onClose, onSuccess }) {
-  const [formData, setFormData] = useState({ code: '', full_name: '', email: '', phone: '', address: '' });
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.full_name || !formData.email) { alert('Name and Email required'); return; }
-    setLoading(true);
-    const result = await addClient(formData);
-    if (result) { alert('Client added!'); onSuccess(); onClose(); }
-    setLoading(false);
-  };
-
-  return (
-    <div style={modalOverlay} onClick={onClose}>
-      <div style={modalContent} onClick={(e) => e.stopPropagation()}>
-        <h2>Add Client</h2>
-        <form onSubmit={handleSubmit}>
-          <input placeholder="Code" value={formData.code} onChange={(e) => setFormData({...formData, code: e.target.value})} style={input} />
-          <input placeholder="Full Name *" value={formData.full_name} onChange={(e) => setFormData({...formData, full_name: e.target.value})} style={input} required />
-          <input placeholder="Email *" type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} style={input} required />
-          <input placeholder="Phone" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} style={input} />
-          <textarea placeholder="Address" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} style={{...input, minHeight: '80px'}} />
-          <button type="submit" style={btnStyle} disabled={loading}>{loading ? 'Adding...' : 'Add Client'}</button>
-          <button type="button" onClick={onClose} style={{...btnStyle, backgroundColor: '#666'}}>Cancel</button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-const btnStyle = { backgroundColor: '#0176d3', color: 'white', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '4px', cursor: 'pointer', marginRight: '0.5rem', marginBottom: '0.5rem', fontWeight: 'bold' };
-const smallBtnStyle = { backgroundColor: '#0176d3', color: 'white', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' };
-const tableStyle = { width: '100%', borderCollapse: 'collapse', backgroundColor: 'white', marginTop: '1rem', borderRadius: '4px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' };
-const thStyle = { padding: '1rem', textAlign: 'left', backgroundColor: '#f3f2f2', fontWeight: 'bold', borderBottom: '2px solid #dddbda' };
-const tdStyle = { padding: '1rem', borderBottom: '1px solid #dddbda' };
-const input = { width: '100%', padding: '0.75rem', marginBottom: '1rem', border: '1px solid #dddbda', borderRadius: '4px', fontSize: '1rem', boxSizing: 'border-box' };
-const gridTwoCols = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' };
-const label = { fontSize: '0.85rem', color: '#706e6b', fontWeight: 'bold', marginBottom: '0.5rem', display: 'block' };
-const modalOverlay = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 };
-const modalContent = { backgroundColor: 'white', borderRadius: '8px', maxWidth: '600px', width: '95%', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' };
-const modalHeader = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '2px solid #0176d3', backgroundColor: '#f8f9fa' };
-const modalTitle = { margin: 0, fontSize: '1.5rem', color: '#181818', fontWeight: 'bold' };
-const closeButton = { backgroundColor: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#706e6b' };
-const modalFooter = { display: 'flex', gap: '1rem', padding: '1.5rem', borderTop: '1px solid #dddbda', justifyContent: 'flex-end' };
+export default Dashboard;

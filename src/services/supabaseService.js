@@ -1,251 +1,272 @@
+// src/services/supabaseService.js
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://lmbfsplimbwnycaawhta.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtYmZzcGxpbWJ3bnljYWF3aHRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxNjY2NTMsImV4cCI6MjA3Nzc0MjY1M30.x32wIbTOCP-5trobejkQKdowQL0U3hGlyge5lMQb2nM';
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Supabase environment variables missing');
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export async function getLoansWithClientNames() {
-  try {
-    const { data, error } = await supabase.from('loans').select('*').order('created_at', { ascending: false });
-    if (error) throw error;
-    return (data || []).map(loan => ({ ...loan, client_name: loan.customer_name || 'Unknown' }));
-  } catch (error) {
-    console.error('Error:', error);
-    return [];
-  }
-}
+// ============= LOANS FUNCTIONS =============
 
-export async function getClients() {
+export const getLoansWithClientNames = async () => {
   try {
-    const { data, error } = await supabase.from('clients').select('*').order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error:', error);
-    return [];
-  }
-}
-
-export async function getClientById(clientId) {
-  try {
-    const { data, error } = await supabase.from('clients').select('*').eq('id', clientId).single();
-    if (error) throw error;
-    return data || null;
-  } catch (error) {
-    console.error('Error:', error);
-    return null;
-  }
-}
-
-export async function addLoan(loanData) {
-  try {
-    const { data, error } = await supabase.from('loans').insert([loanData]).select();
-    if (error) throw error;
-    return data?.[0] || null;
-  } catch (error) {
-    console.error('Error:', error);
-    return null;
-  }
-}
-
-export async function addClient(clientData) {
-  try {
-    const { data, error } = await supabase.from('clients').insert([clientData]).select();
-    if (error) throw error;
-    return data?.[0] || null;
-  } catch (error) {
-    console.error('Error:', error);
-    return null;
-  }
-}
-
-export async function updateLoan(loanId, updates) {
-  try {
-    const { data, error } = await supabase.from('loans').update(updates).eq('id', loanId).select();
-    if (error) throw error;
-    return data?.[0] || null;
-  } catch (error) {
-    console.error('Error:', error);
-    return null;
-  }
-}
-
-export async function updateClient(clientId, updates) {
-  try {
-    const { data, error } = await supabase.from('clients').update(updates).eq('id', clientId).select();
-    if (error) throw error;
-    return data?.[0] || null;
-  } catch (error) {
-    console.error('Error:', error);
-    return null;
-  }
-}
-
-export async function deleteClient(clientId) {
-  try {
-    const { error } = await supabase.from('clients').delete().eq('id', clientId);
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error('Error:', error);
-    return false;
-  }
-}
-
-export async function deleteLoan(loanId) {
-  try {
-    const { error } = await supabase.from('loans').delete().eq('id', loanId);
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error('Error:', error);
-    return false;
-  }
-}
-
-export async function getTransactionsForLoan(loanId) {
-  try {
-    const { data, error } = await supabase.from('transactions').select('*').eq('loan_id', loanId).order('date', { ascending: false }).limit(50);
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error:', error);
-    return [];
-  }
-}
-
-export async function getLoansForClient(clientId) {
-  try {
-    const { data, error } = await supabase.from('loans').select('*').eq('client_id', clientId).order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error:', error);
-    return [];
-  }
-}
-
-export async function generateLoanSchedule(loanId, principal, annualRate, termMonths) {
-  try {
-    const monthlyRate = annualRate / 12 / 100;
-    const monthlyPayment = (principal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -termMonths));
-    const schedule = [];
-    let balance = principal;
+    const { data, error } = await supabase
+      .from('loans')
+      .select('*')
+      .order('created_at', { ascending: false });
     
-    for (let i = 1; i <= termMonths; i++) {
+    if (error) throw error;
+    
+    // If we have loans, fetch client names separately
+    if (data && data.length > 0) {
+      const clientIds = [...new Set(data.map(l => l.client_id))];
+      const { data: clients, error: clientError } = await supabase
+        .from('clients')
+        .select('id, code, name')
+        .in('id', clientIds);
+      
+      if (!clientError && clients) {
+        const clientMap = {};
+        clients.forEach(c => {
+          clientMap[c.id] = c;
+        });
+        
+        return data.map(loan => ({
+          ...loan,
+          client_name: clientMap[loan.client_id]?.name || 'Unknown',
+          client_code: clientMap[loan.client_id]?.code || '',
+        }));
+      }
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching loans:', error);
+    return [];
+  }
+};
+
+export const addLoan = async (loanData) => {
+  try {
+    const { data, error } = await supabase
+      .from('loans')
+      .insert([loanData])
+      .select();
+    
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (error) {
+    console.error('Error adding loan:', error);
+    return null;
+  }
+};
+
+export const getLoansForclient = async (clientId) => {
+  try {
+    const { data, error } = await supabase
+      .from('loans')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching loans for client:', error);
+    return [];
+  }
+};
+
+// ============= CLIENT FUNCTIONS =============
+
+export const getClients = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching clients:', error);
+    return [];
+  }
+};
+
+export const addClient = async (clientData) => {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .insert([clientData])
+      .select();
+    
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (error) {
+    console.error('Error adding client:', error);
+    return null;
+  }
+};
+
+export const updateClient = async (id, clientData) => {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .update(clientData)
+      .eq('id', id)
+      .select();
+    
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (error) {
+    console.error('Error updating client:', error);
+    return null;
+  }
+};
+
+export const deleteClient = async (id) => {
+  try {
+    const { error } = await supabase
+      .from('clients')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error deleting client:', error);
+    return false;
+  }
+};
+
+// ============= LOAN SCHEDULE FUNCTIONS =============
+
+export const generateLoanSchedule = async (loanId, principal, rate, term) => {
+  try {
+    const schedule = [];
+    const monthlyRate = rate / 100 / 12;
+    const monthlyPayment = (principal * monthlyRate * Math.pow(1 + monthlyRate, term)) / (Math.pow(1 + monthlyRate, term) - 1);
+    
+    let balance = principal;
+    for (let i = 1; i <= term; i++) {
       const interestPayment = balance * monthlyRate;
       const principalPayment = monthlyPayment - interestPayment;
       balance -= principalPayment;
+      
       schedule.push({
         loan_id: loanId,
-        payment_number: i,
-        due_date: new Date(Date.now() + i * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        principal: principalPayment,
-        interest: interestPayment,
-        balance: Math.max(0, balance)
+        month: i,
+        payment_amount: monthlyPayment,
+        principal_payment: principalPayment,
+        interest_payment: interestPayment,
+        remaining_balance: Math.max(0, balance),
       });
     }
     
-    const { error } = await supabase.from('repayment_schedule').insert(schedule);
-    if (error) throw error;
-    return true;
+    return schedule;
   } catch (error) {
-    console.error('Error:', error);
-    return false;
-  }
-}
-
-export async function allocatePayment(loanId, paymentAmount) {
-  try {
-    const { data: loan, error: loanError } = await supabase.from('loans').select('*').eq('id', loanId).single();
-    if (loanError) throw loanError;
-    
-    let remaining = paymentAmount;
-    const allocation = { fees: 0, interest: 0, principal: 0 };
-    
-    if (loan.fees_due > 0) {
-      const feePayment = Math.min(remaining, loan.fees_due);
-      allocation.fees = feePayment;
-      remaining -= feePayment;
-    }
-    
-    if (remaining > 0 && loan.interest_due > 0) {
-      const interestPayment = Math.min(remaining, loan.interest_due);
-      allocation.interest = interestPayment;
-      remaining -= interestPayment;
-    }
-    
-    if (remaining > 0) {
-      allocation.principal = remaining;
-    }
-    
-    return allocation;
-  } catch (error) {
-    console.error('Error:', error);
-    return { fees: 0, interest: 0, principal: 0 };
-  }
-}
-
-export async function getLoanProducts() {
-  try {
-    const { data, error } = await supabase.from('loan_products').select('*').eq('active', true).order('interest_rate', { ascending: true });
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error:', error);
+    console.error('Error generating loan schedule:', error);
     return [];
   }
-}
+};
 
-export async function createLoanProduct(productData) {
+// ============= PAYMENT FUNCTIONS =============
+
+export const allocatePayment = async (paymentData) => {
   try {
-    const { data, error } = await supabase.from('loan_products').insert([{ ...productData, active: true, created_by: 'user' }]).select();
+    const { data, error } = await supabase
+      .from('payments')
+      .insert([paymentData])
+      .select();
+    
     if (error) throw error;
     return data?.[0] || null;
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error allocating payment:', error);
     return null;
   }
-}
+};
 
-export async function updateLoanProduct(productId, updates) {
+export const getPayments = async () => {
   try {
-    const { data, error } = await supabase.from('loan_products').update(updates).eq('id', productId).select();
-    if (error) throw error;
-    return data?.[0] || null;
-  } catch (error) {
-    console.error('Error:', error);
-    return null;
-  }
-}
-
-export async function getClientLoans(clientId) {
-  try {
-    const { data, error } = await supabase.from('loans').select('*').eq('client_id', clientId).order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('payments')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error fetching payments:', error);
     return [];
   }
-}
+};
 
-export async function getNextLoanNumber() {
+// ============= TRANSACTION FUNCTIONS =============
+
+export const getTransactions = async () => {
   try {
-    const { data, error } = await supabase.from('loans').select('loan_number').order('loan_number', { ascending: false }).limit(1);
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
     if (error) throw error;
-    
-    if (!data || data.length === 0) return 'L10001';
-    
-    const lastNumber = parseInt(data[0].loan_number.replace('L', '')) + 1;
-    return 'L' + lastNumber.toString().padStart(5, '0');
+    return data || [];
   } catch (error) {
-    console.error('Error:', error);
-    return 'L10001';
+    console.error('Error fetching transactions:', error);
+    return [];
   }
-}
+};
+
+export const addTransaction = async (transactionData) => {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert([transactionData])
+      .select();
+    
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (error) {
+    console.error('Error adding transaction:', error);
+    return null;
+  }
+};
+
+// ============= INTEREST CALCULATION FUNCTIONS =============
+
+export const getInterestCalculations = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('interest_calculations')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching interest calculations:', error);
+    return [];
+  }
+};
+
+export const addInterestCalculation = async (interestData) => {
+  try {
+    const { data, error } = await supabase
+      .from('interest_calculations')
+      .insert([interestData])
+      .select();
+    
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (error) {
+    console.error('Error adding interest calculation:', error);
+    return null;
+  }
+};
