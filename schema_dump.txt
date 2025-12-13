@@ -1,0 +1,46 @@
+--- INSPECTING CLIENTS ---
+[
+  "id",
+  "client_code",
+  "first_name",
+  "last_name",
+  "email",
+  "phone",
+  "address",
+  "city",
+  "postcode",
+  "country",
+  "id_type",
+  "id_number",
+  "date_of_birth",
+  "employment_status",
+  "monthly_income",
+  "status",
+  "created_at",
+  "updated_at",
+  "region"
+]
+
+--- INSPECTING LOANS ---
+[
+  "id",
+  "loan_number",
+  "client_id",
+  "rate_id",
+  "loan_amount",
+  "establishment_fee",
+  "start_date",
+  "end_date",
+  "current_balance",
+  "principal_outstanding",
+  "interest_accrued",
+  "status",
+  "created_at",
+  "updated_at",
+  "term",
+  "repayment_frequency",
+  "repayment_amount",
+  "term_periods",
+  "total_repayable",
+  "instalments_due"
+]

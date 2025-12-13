@@ -1,405 +1,341 @@
-// src/pages/Dashboard.jsx - COMPLETE & CORRECTED VERSION
-// Includes: Client360Modal with loans + transactions, dd-mm-yyyy date format
+import React, { useState, useEffect, useMemo } from "react";
+import { getLoansWithClientNames, getClients } from "../services/supabaseService";
+import CalculatorModal from "../components/CalculatorModal";
+import NewClientModal from "../components/NewClientModal";
+import Client360Modal from "../components/Client360Modal";
+import Loans360Modal from "../components/Loans360Modal";
+import * as XLSX from "xlsx";
 
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabaseService';
-
-// Helper function to format dates as dd-mm-yyyy
-const formatDate = (dateStr) => {
-  if (!dateStr) return 'N/A';
-  const date = new Date(dateStr);
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}-${month}-${year}`;
-};
-
-const Client360Modal = ({ client, onClose }) => {
-  const [clientLoans, setClientLoans] = React.useState([]);
-  const [clientTransactions, setClientTransactions] = React.useState([]);
-  const [loadingLoans, setLoadingLoans] = React.useState(true);
-
-  React.useEffect(() => {
-    const fetchClientData = async () => {
-      if (!client?.id) return;
-
-      try {
-        // Fetch all loans for this client
-        const { data: loansData, error: loansError } = await supabase
-          .from('loans')
-          .select('*')
-          .eq('client_id', client.id)
-          .order('created_at', { ascending: false });
-
-        if (!loansError && loansData) {
-          setClientLoans(loansData);
-
-          // Fetch transactions for all this client's loans
-          const loanIds = loansData.map(l => l.id);
-          if (loanIds.length > 0) {
-            const { data: txnData } = await supabase
-              .from('transactions')
-              .select('*')
-              .in('loan_id', loanIds)
-              .order('txn_date', { ascending: false })
-              .limit(10);
-
-            if (txnData) {
-              setClientTransactions(txnData);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching client data:', error);
-      } finally {
-        setLoadingLoans(false);
-      }
-    };
-
-    fetchClientData();
-  }, [client]);
-
-  if (!client) return null;
-
-  // Helper function to parse allocation breakdown JSON
-  const parseAllocation = (allocationStr) => {
-    try {
-      return JSON.parse(allocationStr);
-    } catch {
-      return { interest: 0, principal: 0, fees: 0 };
-    }
-  };
-
-  const totalOutstanding = clientLoans.reduce((sum, loan) => {
-    return sum + (parseFloat(loan.balance) || 0);
-  }, 0);
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(0,0,0,0.7)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 2000,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          background: '#fff',
-          padding: '2rem',
-          borderRadius: '12px',
-          maxWidth: '900px',
-          width: '95%',
-          maxHeight: '90vh',
-          overflow: 'auto',
-          boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* HEADER */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '2px solid #0176d3', paddingBottom: '1rem' }}>
-          <h2 style={{ margin: 0, color: '#181818', fontSize: '1.6rem' }}>Client 360 - {client.first_name} {client.last_name}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
-        </div>
-
-        {/* PERSONAL & ADDRESS DETAILS */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-          {/* Personal Details */}
-          <div style={{ border: '1px solid #dee2e6', padding: '1rem', borderRadius: '6px' }}>
-            <h3 style={{ margin: '0 0 1rem 0', color: '#0176d3', fontSize: '0.95rem', fontWeight: '600' }}>Personal Details</h3>
-            <div style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>
-              <p style={{ margin: '0.3rem 0' }}><strong>Code:</strong> {client.client_code || 'N/A'}</p>
-              <p style={{ margin: '0.3rem 0' }}><strong>Name:</strong> {client.first_name} {client.last_name}</p>
-              <p style={{ margin: '0.3rem 0' }}><strong>Email:</strong> {client.email || 'N/A'}</p>
-              <p style={{ margin: '0.3rem 0' }}><strong>Phone:</strong> {client.phone || 'N/A'}</p>
-              <p style={{ margin: '0.3rem 0' }}><strong>Status:</strong> <span style={{ textTransform: 'capitalize' }}>{client.status || 'active'}</span></p>
-            </div>
-          </div>
-
-          {/* Address */}
-          <div style={{ border: '1px solid #dee2e6', padding: '1rem', borderRadius: '6px' }}>
-            <h3 style={{ margin: '0 0 1rem 0', color: '#0176d3', fontSize: '0.95rem', fontWeight: '600' }}>Address</h3>
-            <div style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>
-              <p style={{ margin: '0.3rem 0' }}>{client.address || 'N/A'}</p>
-              <p style={{ margin: '0.3rem 0' }}>{client.city || ''} {client.postcode || ''}</p>
-              <p style={{ margin: '0.3rem 0' }}>{client.country || 'N/A'}</p>
-            </div>
-          </div>
-
-          {/* Employment Info */}
-          <div style={{ border: '1px solid #dee2e6', padding: '1rem', borderRadius: '6px' }}>
-            <h3 style={{ margin: '0 0 1rem 0', color: '#0176d3', fontSize: '0.95rem', fontWeight: '600' }}>Employment</h3>
-            <div style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>
-              <p style={{ margin: '0.3rem 0' }}><strong>Status:</strong> <span style={{ textTransform: 'capitalize' }}>{client.employment_status || 'N/A'}</span></p>
-              <p style={{ margin: '0.3rem 0' }}><strong>Monthly Income:</strong> ${parseFloat(client.monthly_income || 0).toFixed(2)}</p>
-            </div>
-          </div>
-
-          {/* ID Details */}
-          <div style={{ border: '1px solid #dee2e6', padding: '1rem', borderRadius: '6px' }}>
-            <h3 style={{ margin: '0 0 1rem 0', color: '#0176d3', fontSize: '0.95rem', fontWeight: '600' }}>Identification</h3>
-            <div style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>
-              <p style={{ margin: '0.3rem 0' }}><strong>Type:</strong> <span style={{ textTransform: 'capitalize' }}>{client.id_type || 'N/A'}</span></p>
-              <p style={{ margin: '0.3rem 0' }}><strong>Number:</strong> {client.id_number || 'N/A'}</p>
-              <p style={{ margin: '0.3rem 0' }}><strong>DOB:</strong> {formatDate(client.date_of_birth)}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* LOANS SUMMARY */}
-        <div style={{ marginBottom: '2rem', borderTop: '2px solid #dee2e6', paddingTop: '1.5rem' }}>
-          <h3 style={{ margin: '0 0 1rem 0', color: '#181818', fontSize: '1.1rem', fontWeight: '600' }}>
-            Loans ({clientLoans.length})
-            {totalOutstanding > 0 && <span style={{ color: '#dc3545', marginLeft: '0.5rem' }}>Outstanding: ${totalOutstanding.toFixed(2)}</span>}
-          </h3>
-
-          {loadingLoans ? (
-            <p style={{ color: '#706e6b' }}>Loading loans...</p>
-          ) : clientLoans.length === 0 ? (
-            <p style={{ color: '#706e6b' }}>No loans found for this client</p>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '1px solid #dee2e6' }}>
-                  <th style={{ padding: '0.6rem', textAlign: 'left', fontWeight: '600' }}>Loan #</th>
-                  <th style={{ padding: '0.6rem', textAlign: 'left', fontWeight: '600' }}>Balance</th>
-                  <th style={{ padding: '0.6rem', textAlign: 'left', fontWeight: '600' }}>Status</th>
-                  <th style={{ padding: '0.6rem', textAlign: 'left', fontWeight: '600' }}>Opened</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clientLoans.map((loan) => (
-                  <tr key={loan.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                    <td style={{ padding: '0.6rem' }}>{loan.loan_number || 'N/A'}</td>
-                    <td style={{ padding: '0.6rem' }}>${parseFloat(loan.balance || 0).toFixed(2)}</td>
-                    <td style={{ padding: '0.6rem', textTransform: 'capitalize' }}>{loan.status || 'active'}</td>
-                    <td style={{ padding: '0.6rem' }}>{formatDate(loan.date_open)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* RECENT TRANSACTIONS */}
-        <div style={{ marginBottom: '2rem' }}>
-          <h3 style={{ margin: '0 0 1rem 0', color: '#181818', fontSize: '1.1rem', fontWeight: '600' }}>
-            Recent Transactions ({clientTransactions.length})
-          </h3>
-
-          {clientTransactions.length === 0 ? (
-            <p style={{ color: '#706e6b' }}>No transactions found</p>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '1px solid #dee2e6' }}>
-                  <th style={{ padding: '0.6rem', textAlign: 'left', fontWeight: '600' }}>Date</th>
-                  <th style={{ padding: '0.6rem', textAlign: 'left', fontWeight: '600' }}>Type</th>
-                  <th style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '600' }}>Amount</th>
-                  <th style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '600' }}>Fees</th>
-                  <th style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '600' }}>Interest</th>
-                  <th style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '600' }}>Principal</th>
-                  <th style={{ padding: '0.6rem', textAlign: 'left', fontWeight: '600' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clientTransactions.map((txn) => {
-                  const allocation = parseAllocation(txn.allocation_breakdown);
-                  return (
-                    <tr key={txn.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                      <td style={{ padding: '0.6rem' }}>{formatDate(txn.txn_date)}</td>
-                      <td style={{ padding: '0.6rem', textTransform: 'capitalize' }}>{txn.txn_type || 'N/A'}</td>
-                      <td style={{ padding: '0.6rem', textAlign: 'right' }}>${parseFloat(txn.amount || 0).toFixed(2)}</td>
-                      <td style={{ padding: '0.6rem', textAlign: 'right' }}>${parseFloat(allocation.fees || allocation.establishment_fee || 0).toFixed(2)}</td>
-                      <td style={{ padding: '0.6rem', textAlign: 'right' }}>${parseFloat(allocation.interest || 0).toFixed(2)}</td>
-                      <td style={{ padding: '0.6rem', textAlign: 'right' }}>${parseFloat(allocation.principal || 0).toFixed(2)}</td>
-                      <td style={{ padding: '0.6rem' }}>{txn.processing_status || 'N/A'}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        <button onClick={onClose} style={{ padding: '0.6rem 1.2rem', background: '#0176d3', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '500' }}>Close</button>
-      </div>
-    </div>
-  );
-};
-
-const LoanDetailsModal = ({ loan, onClose }) => {
-  if (!loan) return null;
-  return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500 }} onClick={onClose}>
-      <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '600px', width: '95%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }} onClick={(e) => e.stopPropagation()}>
-        <h2 style={{ margin: '0 0 1.5rem 0', color: '#181818', fontSize: '1.6rem', borderBottom: '2px solid #0176d3', paddingBottom: '1rem' }}>Loan Details</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-          <div>
-            <p style={{ margin: '0.5rem 0', color: '#706e6b', fontWeight: '600', fontSize: '0.85rem' }}>Loan Number:</p>
-            <p style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: '#181818' }}>{loan.loan_number || 'N/A'}</p>
-          </div>
-          <div>
-            <p style={{ margin: '0.5rem 0', color: '#706e6b', fontWeight: '600', fontSize: '0.85rem' }}>Client:</p>
-            <p style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: '#181818' }}>{loan.client_name || 'Unknown'}</p>
-          </div>
-          <div>
-            <p style={{ margin: '0.5rem 0', color: '#706e6b', fontWeight: '600', fontSize: '0.85rem' }}>Balance:</p>
-            <p style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: '#181818' }}>${loan.balance?.toFixed(2) || '0.00'}</p>
-          </div>
-          <div>
-            <p style={{ margin: '0.5rem 0', color: '#706e6b', fontWeight: '600', fontSize: '0.85rem' }}>Status:</p>
-            <p style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: '#181818', textTransform: 'capitalize' }}>{loan.status || 'active'}</p>
-          </div>
-          <div>
-            <p style={{ margin: '0.5rem 0', color: '#706e6b', fontWeight: '600', fontSize: '0.85rem' }}>Opened:</p>
-            <p style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: '#181818' }}>{formatDate(loan.date_open)}</p>
-          </div>
-        </div>
-        <button onClick={onClose} style={{ padding: '0.6rem 1.2rem', background: '#0176d3', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '500' }}>Close</button>
-      </div>
-    </div>
-  );
-};
-
-const styles = {
-  container: { padding: '1.5rem', backgroundColor: '#f8f9fa', minHeight: '100vh' },
-  metricsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' },
-  metricCard: { backgroundColor: '#ffffff', borderRadius: '8px', padding: '1rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', textAlign: 'center' },
-  cardBorderBlue: { borderTop: '4px solid #0176d3' },
-  cardTitle: { fontSize: '0.85rem', color: '#706e6b', margin: 0 },
-  cardValue: { fontSize: '1.8rem', fontWeight: 'bold', color: '#181818', margin: 0 },
-  table: { width: '100%', borderCollapse: 'collapse', backgroundColor: '#ffffff', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' },
-  th: { backgroundColor: '#0176d3', color: '#ffffff', padding: '0.6rem 0.5rem', textAlign: 'left', fontSize: '0.8rem', fontWeight: '600' },
-  td: { padding: '0.5rem', borderBottom: '1px solid #dee2e6', fontSize: '0.8rem' },
-};
-
-const Dashboard = () => {
+export default function Dashboard() {
+  // STATE
   const [loans, setLoans] = useState([]);
-  const [allLoans, setAllLoans] = useState([]);
-  const [clientsMap, setClientsMap] = useState({});
-  const [metrics, setMetrics] = useState({ totalOutstanding: 0, paymentsToday: 0, overdueLoans: 0 });
-  const [selectedLoan, setSelectedLoan] = useState(null);
-  const [selectedClient, setSelectedClient] = useState(null);
+  const [clients, setClients] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [showCalculator, setShowCalculator] = useState(false);
+  const [showNewClient, setShowNewClient] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [error, setError] = useState("");
+
+  // MODAL STATE
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [showClient360, setShowClient360] = useState(false);
+  const [selectedLoan, setSelectedLoan] = useState(null);
+  const [showLoans360, setShowLoans360] = useState(false);
+
+  // LOAD DATA
+  async function loadData() {
+    setLoading(true);
+    const [loanRes, clientRes] = await Promise.all([
+      getLoansWithClientNames(),
+      getClients(),
+    ]);
+
+    if (loanRes.success) setLoans(loanRes.data || []);
+    if (clientRes.success) setClients(clientRes.data || []);
+
+    setLoading(false);
+  }
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // Fetch all loans
-        const { data: loansData } = await supabase.from('loans').select('*').order('created_at', { ascending: false });
-        
-        // Fetch all clients
-        const { data: clientsData } = await supabase.from('clients').select('*');
+    loadData();
+  }, []);
 
-        // Create client map
-        const cMap = {};
-        (clientsData || []).forEach(c => { cMap[c.id] = c; });
-        setClientsMap(cMap);
+  // BUILD ROWS — 1 ROW PER LOAN
+  const dataRows = useMemo(() => {
+    const loanRows = loans.map((l) => ({
+      type: "loan",
+      id: l.id,
+      clientId: l.clients.id,
+      firstName: l.clients.first_name,
+      lastName: l.clients.last_name,
+      loanNumber: l.loan_number,
+      city: l.clients.city,
+      region: l.clients.region,
+      balance: l.current_balance,
+      status: l.status,
+      instalmentsDue: l.instalments_due,
+      fullObject: l // Keep full object for modal
+    }));
 
-        // Enrich loans
-        const enrichedLoans = (loansData || []).map(loan => ({
-          ...loan,
-          client_name: cMap[loan.client_id] ? `${cMap[loan.client_id].first_name} ${cMap[loan.client_id].last_name}` : 'Unknown',
-        }));
+    const clientRows = clients
+      .filter((c) => !loans.some((l) => l.clients.id === c.id))
+      .map((c) => ({
+        type: "client",
+        id: c.id,
+        clientId: c.id,
+        firstName: c.first_name,
+        lastName: c.last_name,
+        loanNumber: "",
+        city: c.city,
+        region: c.region,
+        balance: 0,
+        status: "",
+        instalmentsDue: 0,
+        fullObject: null
+      }));
 
-        setAllLoans(enrichedLoans);
+    let list = [...loanRows, ...clientRows];
 
-        // Metrics
-        const outstanding = enrichedLoans.reduce((sum, l) => sum + (parseFloat(l.balance) || 0), 0);
-        const overdue = enrichedLoans.filter(l => l.status === 'overdue').length;
-        setMetrics({ totalOutstanding: outstanding, paymentsToday: 0, overdueLoans: overdue });
+    // SEARCH
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      list = list.filter(
+        (r) =>
+          `${r.firstName} ${r.lastName}`.toLowerCase().includes(term) ||
+          (r.loanNumber || "").toLowerCase().includes(term) ||
+          (r.city || "").toLowerCase().includes(term) ||
+          (r.region || "").toLowerCase().includes(term)
+      );
+    }
 
-        // Paginate
-        const startIdx = (currentPage - 1) * pageSize;
-        setLoans(enrichedLoans.slice(startIdx, startIdx + pageSize));
-      } catch (error) {
-        console.error('Error:', error);
-      } finally {
-        setLoading(false);
-      }
+    // FILTER
+    if (filterStatus !== "all") {
+      list = list.filter((r) => r.type === "loan" && r.status === filterStatus);
+    }
+
+    // SORT
+    if (sortConfig.key) {
+      list.sort((a, b) => {
+        let aVal, bVal;
+
+        if (sortConfig.key === "clientName") {
+          aVal = `${a.lastName} ${a.firstName}`.toLowerCase();
+          bVal = `${b.lastName} ${b.firstName}`.toLowerCase();
+        } else {
+          aVal = (a[sortConfig.key] || "").toString().toLowerCase();
+          bVal = (b[sortConfig.key] || "").toString().toLowerCase();
+        }
+
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return list;
+  }, [loans, clients, searchTerm, sortConfig, filterStatus]);
+
+  const requestSort = (key) => {
+    let direction = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc") direction = "desc";
+    setSortConfig({ key, direction });
+  };
+
+  // HANDLERS
+  const handleClientClick = (clientId) => {
+    setSelectedClient({ id: clientId }); // Minimal object needed for modal logic usually, or fetch full
+    setShowClient360(true);
+  };
+
+  const handleLoanClick = (loan) => {
+    setSelectedLoan(loan);
+    setShowLoans360(true);
+  };
+
+  // METRICS
+  const metrics = useMemo(() => {
+    const active = loans.filter((l) => l.status === "active").length;
+    const total = loans.reduce((s, l) => s + (l.current_balance || 0), 0);
+    return {
+      totalLoans: loans.length,
+      activeLoans: active,
+      totalOverdue: "0.00",
+      totalOutstanding: total.toFixed(2),
     };
+  }, [loans]);
 
-    fetchData();
-  }, [currentPage, pageSize]);
-
-  const totalPages = Math.ceil(allLoans.length / pageSize);
-
+  // RENDER
   return (
-    <div style={styles.container}>
-      <div style={styles.metricsGrid}>
-        <div style={{ ...styles.metricCard, ...styles.cardBorderBlue }}>
-          <p style={styles.cardTitle}>Total Outstanding</p>
-          <p style={styles.cardValue}>${metrics.totalOutstanding.toFixed(2)}</p>
-        </div>
-        <div style={{ ...styles.metricCard, ...styles.cardBorderBlue }}>
-          <p style={styles.cardTitle}>Payments Today</p>
-          <p style={styles.cardValue}>{metrics.paymentsToday}</p>
-        </div>
-        <div style={{ ...styles.metricCard, ...styles.cardBorderBlue }}>
-          <p style={styles.cardTitle}>Overdue Loans</p>
-          <p style={styles.cardValue}>{metrics.overdueLoans}</p>
+    <div style={pageStyle}>
+      <div style={headerStyle}>
+        <h1 style={titleStyle}>Loan Dashboard</h1>
+        <div style={actionBarStyle}>
+          <input
+            type="text"
+            placeholder="🔍 Search by name, loan#, city..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={searchStyle}
+          />
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={filterStyle}>
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="closed">Closed</option>
+          </select>
+          <button onClick={() => setShowCalculator(true)} style={calcBtnStyle}>+ New Loan</button>
+          <button onClick={() => setShowNewClient(true)} style={newClientBtnStyle}>+ New Client</button>
+          <button onClick={() => exportToExcel(dataRows)} style={excelBtnStyle}>Export Excel</button>
+          <button onClick={printPDF} style={printBtnStyle}>Print PDF</button>
         </div>
       </div>
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '2rem', color: '#706e6b' }}>Loading loans...</div>
-      ) : allLoans.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '2rem', color: '#706e6b' }}>No loans found</div>
-      ) : (
-        <>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Loan No.</th>
-                <th style={styles.th}>Client</th>
-                <th style={styles.th}>Balance</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Opened</th>
-                <th style={styles.th}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loans.map(loan => (
-                <tr key={loan.id}>
-                  <td style={styles.td}><a href="#" onClick={(e) => { e.preventDefault(); setSelectedLoan(loan); }} style={{ color: '#0176d3', textDecoration: 'underline', cursor: 'pointer' }}>{loan.loan_number || 'N/A'}</a></td>
-                  <td style={styles.td}><a href="#" onClick={(e) => { e.preventDefault(); setSelectedClient(clientsMap[loan.client_id]); }} style={{ color: '#0176d3', textDecoration: 'underline', cursor: 'pointer' }}>{loan.client_name}</a></td>
-                  <td style={styles.td}>${loan.balance?.toFixed(2) || '0.00'}</td>
-                  <td style={styles.td}>{loan.status || 'active'}</td>
-                  <td style={styles.td}>{formatDate(loan.date_open)}</td>
-                  <td style={styles.td}><button onClick={() => setSelectedLoan(loan)} style={{ padding: '0.3rem 0.6rem', background: '#0176d3', color: '#fff', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '0.75rem' }}>View</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div style={metricsGridStyle}>
+        <div style={metricCardStyle}><h3 style={metricValueStyle}>{metrics.totalLoans}</h3><p style={metricLabelStyle}>Total Loans</p></div>
+        <div style={metricCardStyle}><h3 style={metricValueStyle}>{metrics.activeLoans}</h3><p style={metricLabelStyle}>Active Loans</p></div>
+        <div style={metricCardStyle}><h3 style={{ ...metricValueStyle, color: "#d32f2f" }}>${metrics.totalOverdue}</h3><p style={metricLabelStyle}>Total Overdue</p></div>
+        <div style={metricCardStyle}><h3 style={{ ...metricValueStyle, color: "#0176d3" }}>${metrics.totalOutstanding}</h3><p style={metricLabelStyle}>Total Outstanding</p></div>
+      </div>
 
-          <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            <button style={{ padding: '0.5rem 0.75rem', background: '#0176d3', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', opacity: currentPage === 1 ? 0.5 : 1 }} disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>← Previous</button>
-            <span style={{ fontSize: '0.85rem' }}>Page {currentPage} of {totalPages}</span>
-            <button style={{ padding: '0.5rem 0.75rem', background: '#0176d3', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', opacity: currentPage === totalPages ? 0.5 : 1 }} disabled={currentPage === totalPages} onClick={() => setCurrentPage(currentPage + 1)}>Next →</button>
-            <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }} style={{ padding: '0.4rem', borderRadius: '4px', border: '1px solid #0176d3', cursor: 'pointer', fontSize: '0.8rem' }}>
-              <option value={20}>20/page</option>
-              <option value={50}>50/page</option>
-              <option value={100}>100/page</option>
-            </select>
-          </div>
-        </>
+      <div style={tableContainerStyle}>
+        {loading ? <p style={loadingStyle}>Loading…</p> :
+          error ? <p style={errorStyle}>{error}</p> :
+            dataRows.length === 0 ? <p style={emptyStyle}>No records found.</p> :
+              <div style={tableWrapperStyle}>
+                <table style={tableStyle}>
+                  <thead><tr>
+                    <th style={{ ...thStyle, width: '40px', textAlign: 'center' }}>
+                      <input type="checkbox" />
+                    </th>
+                    {columns.map(c => (
+                      <th key={c.key} onClick={() => requestSort(c.sortKey)} style={thStyle}>
+                        {c.label}
+                        {sortConfig.key === c.sortKey && <span style={{ marginLeft: "0.5rem" }}>{sortConfig.direction === "asc" ? "↑" : "↓"}</span>}
+                      </th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {dataRows.map(r => (
+                      <tr key={r.id} style={trStyle}>
+                        <td style={{ ...tdStyle, textAlign: 'center' }}>
+                          <input type="checkbox" />
+                        </td>
+                        <td style={tdStyle}>
+                          <span
+                            onClick={() => handleClientClick(r.clientId)}
+                            style={{ color: '#0176d3', cursor: 'pointer', fontWeight: 500 }}
+                          >
+                            {r.firstName} {r.lastName}
+                          </span>
+                        </td>
+                        <td style={tdStyle}>
+                          {r.loanNumber ? (
+                            <span
+                              onClick={() => handleLoanClick(r.fullObject)}
+                              style={{ color: '#0176d3', cursor: 'pointer', fontWeight: 500 }}
+                            >
+                              {r.loanNumber}
+                            </span>
+                          ) : "-"}
+                        </td>
+                        <td style={tdStyle}>{r.city || "-"}</td>
+                        <td style={tdStyle}>{r.region || "-"}</td>
+                        <td style={{ ...tdStyle, fontWeight: 600, color: "#0176d3" }}>${r.balance.toFixed(2)}</td>
+                        <td style={tdStyle}>
+                          {r.status ? (
+                            <span style={{
+                              ...statusBadgeStyle,
+                              backgroundColor: r.status === "active" ? "#d4edda" : "#f8d7da",
+                              color: r.status === "active" ? "#155724" : "#721c24"
+                            }}>
+                              {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                            </span>
+                          ) : "-"}
+                        </td>
+                        <td style={tdStyle}>{r.instalmentsDue}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+        }
+      </div>
+
+      {showCalculator && <CalculatorModal onClose={() => setShowCalculator(false)} />}
+      {showNewClient && <NewClientModal onClose={() => setShowNewClient(false)} onSave={() => loadData()} />}
+
+      {showClient360 && selectedClient && (
+        <Client360Modal
+          isOpen={showClient360}
+          onClose={() => setShowClient360(false)}
+          clientId={selectedClient.id}
+        />
       )}
 
-      <LoanDetailsModal loan={selectedLoan} onClose={() => setSelectedLoan(null)} />
-      <Client360Modal client={selectedClient} onClose={() => setSelectedClient(null)} />
+      {showLoans360 && selectedLoan && (
+        <Loans360Modal
+          loan={selectedLoan}
+          onClose={() => setShowLoans360(false)}
+        />
+      )}
     </div>
   );
+}
+
+const columns = [
+  { label: "Client Name", key: "clientName", sortKey: "clientName" },
+  { label: "Loan No.", key: "loanNumber", sortKey: "loanNumber" },
+  { label: "City", key: "city", sortKey: "city" },
+  { label: "Region", key: "region", sortKey: "region" },
+  { label: "Current Balance", key: "balance", sortKey: "balance" },
+  { label: "Status", key: "status", sortKey: "status" },
+  { label: "# Instalments Due", key: "instalmentsDue", sortKey: "instalmentsDue" },
+];
+
+/* STYLES & EXPORT/PRINT */
+const pageStyle = { padding: "1.5rem", maxWidth: "1400px", margin: "0 auto" };
+const headerStyle = { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", marginBottom: "1.5rem" };
+const titleStyle = { margin: 0, color: "#0176d3", fontSize: "1.75rem", fontWeight: 600 };
+const actionBarStyle = { display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" };
+const searchStyle = { padding: "0.5rem 1rem", border: "1px solid #706e6b", borderRadius: "0.25rem", width: "280px" };
+const filterStyle = { padding: "0.5rem", border: "1px solid #706e6b", borderRadius: "0.25rem", background: "#fff" };
+const calcBtnStyle = { background: "#0176d3", color: "#fff", border: "none", padding: "0.5rem 1rem", borderRadius: "0.25rem", cursor: "pointer" };
+const newClientBtnStyle = { background: "#181818", color: "#fff", border: "none", padding: "0.5rem 1rem", borderRadius: "0.25rem", cursor: "pointer" };
+const excelBtnStyle = { background: "#2e7d32", color: "#fff", border: "none", padding: "0.5rem 1rem", borderRadius: "0.25rem", cursor: "pointer" };
+const printBtnStyle = { background: "#706e6b", color: "#fff", border: "none", padding: "0.5rem 1rem", borderRadius: "0.25rem", cursor: "pointer" };
+
+const metricsGridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "2rem" };
+const metricCardStyle = { background: "#f0f9ff", padding: "1.5rem", borderRadius: "0.5rem", textAlign: "center", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
+const metricValueStyle = { margin: 0, fontSize: "2rem", fontWeight: 700, color: "#181818" };
+const metricLabelStyle = { margin: "0.5rem 0 0", color: "#706e6b", fontSize: "0.9rem" };
+
+const tableContainerStyle = { background: "#fff", borderRadius: "0.5rem", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
+const tableWrapperStyle = { overflowX: "auto" };
+const tableStyle = { width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" };
+const thStyle = { background: "#0176d3", color: "#fff", padding: "0.75rem", textAlign: "left", fontWeight: 600, cursor: "pointer", userSelect: "none", whiteSpace: 'nowrap' };
+const trStyle = { borderBottom: "1px solid #eee" };
+const tdStyle = { padding: "0.75rem", color: "#181818", verticalAlign: 'middle' };
+const statusBadgeStyle = { padding: "0.25rem 0.5rem", borderRadius: "0.25rem", fontSize: "0.75rem", fontWeight: 500 };
+const loadingStyle = { textAlign: "center", padding: "3rem", color: "#706e6b" };
+const errorStyle = { ...loadingStyle, color: "#d32f2f" };
+const emptyStyle = { ...loadingStyle, color: "#706e6b", fontStyle: "italic" };
+
+const exportToExcel = (data) => {
+  const ws = XLSX.utils.json_to_sheet(data.map(r => ({
+    "Client Name": `${r.firstName} ${r.lastName}`,
+    "Loan No.": r.loanNumber,
+    City: r.city,
+    Region: r.region,
+    "Current Balance": r.balance.toFixed(2),
+    Status: r.status,
+    "# Instalments Due": r.instalmentsDue,
+  })));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Loans");
+  XLSX.writeFile(wb, `LMS_${new Date().toISOString().slice(0, 10)}.xlsx`);
 };
 
-export default Dashboard;
+const printPDF = () => {
+  const win = window.open("", "", "width=900,height=700");
+  win?.document.write(`
+    <html><head><title>LMS Report</title>
+    <style>body{font-family:Arial;padding:30px;}table{width:100%;border-collapse:collapse;margin-top:20px;}th,td{border:1px solid #000;padding:8px;text-align:left;}th{background:#0176d3;color:#fff;}</style>
+    </head><body>
+    <h2>All Apps Ltd – Loan Report</h2>
+    <table><thead><tr><th>Client</th><th>Loan No.</th><th>City</th><th>Region</th><th>Balance</th><th>Status</th><th># Due</th></tr></thead><tbody>
+    ${dataRows.map(r => `<tr>
+      <td>${r.firstName} ${r.lastName}</td>
+      <td>${r.loanNumber || ""}</td>
+      <td>${r.city || ""}</td>
+      <td>${r.region || ""}</td>
+      <td>$${r.balance.toFixed(2)}</td>
+      <td>${r.status || ""}</td>
+      <td>${r.instalmentsDue}</td>
+    </tr>`).join("")}
+    </tbody></table>
+    <script>window.onload=()=>window.print();</script>
+    </body></html>
+  `);
+  win?.document.close();
+};

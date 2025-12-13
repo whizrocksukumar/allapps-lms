@@ -1,338 +1,239 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabaseClient';
+// src/components/Client360Modal.jsx
+import React, { useState, useEffect } from "react";
+import { supabase, getNextRepayment, getLoanStatistics } from "../services/supabaseService";
+import Loans360Modal from "./Loans360Modal";
+import EditClientModal from "./EditClientModal";
 
-const Client360Modal = ({ isOpen, onClose, clientId }) => {
-  const [clientData, setClientData] = useState(null);
+export default function Client360Modal({ isOpen, onClose, clientId }) {
+  const [client, setClient] = useState(null);
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showLoan, setShowLoan] = useState(false);
+  const [selectedLoan, setSelectedLoan] = useState(null);
+  const [showEdit, setShowEdit] = useState(false);
 
   useEffect(() => {
     if (isOpen && clientId) {
-      fetchClientData();
+      fetchClient();
       fetchLoans();
     }
   }, [isOpen, clientId]);
 
-  const fetchClientData = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('id', clientId)
-        .single();
-
-      if (error) throw error;
-      setClientData(data);
-    } catch (error) {
-      console.error('Error fetching client data:', error);
-    }
+  const fetchClient = async () => {
+    const { data } = await supabase.from('clients').select('*').eq('id', clientId).single();
+    setClient(data);
   };
 
   const fetchLoans = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('loans')
-        .select('*')
-        .eq('customer_id', clientId)
-        .order('created_at', { ascending: false });
+    setLoading(true);
+    // Fetch loans
+    const { data: loanData, error } = await supabase
+      .from('loans')
+      .select('*')
+      .eq('client_id', clientId);
 
-      if (error) throw error;
-      setLoans(data || []);
-    } catch (error) {
-      console.error('Error fetching loans:', error);
-    } finally {
+    if (error) {
+      console.error("Error fetching loans:", error);
       setLoading(false);
+      return;
     }
-  };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}-${month}-${year}`;
-  };
+    // Fetch next repayment and stats for each loan
+    const loansWithDetails = await Promise.all(
+      (loanData || []).map(async (loan) => {
+        const [nextRepaymentRes, statsRes] = await Promise.all([
+          getNextRepayment(loan.id),
+          getLoanStatistics(loan.id)
+        ]);
+        return {
+          ...loan,
+          nextRepayment: nextRepaymentRes.data,
+          stats: statsRes.data || { totalPaymentsMade: 0, overdueAmount: 0 }
+        };
+      })
+    );
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-NZ', {
-      style: 'currency',
-      currency: 'NZD'
-    }).format(amount || 0);
+    setLoans(loansWithDetails);
+    setLoading(false);
   };
 
   if (!isOpen) return null;
 
-  const styles = {
-    modalOverlay: {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000
-    },
-    modalContent: {
-      backgroundColor: '#fff',
-      borderRadius: '0.5rem',
-      maxWidth: '90%',
-      width: '1000px',
-      maxHeight: '90vh',
-      overflowY: 'auto',
-      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-      position: 'relative'
-    },
-    header: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '1.5rem',
-      borderBottom: '1px solid #e5e7eb',
-      backgroundColor: '#0176d3',
-      color: '#fff'
-    },
-    title: {
-      fontSize: '1.5rem',
-      fontWeight: '600',
-      margin: 0
-    },
-    closeButton: {
-      backgroundColor: 'transparent',
-      border: 'none',
-      fontSize: '1.5rem',
-      cursor: 'pointer',
-      color: '#fff'
-    },
-    body: {
-      padding: '1.5rem'
-    },
-    section: {
-      marginBottom: '2rem'
-    },
-    sectionTitle: {
-      fontSize: '1rem',
-      fontWeight: '600',
-      color: '#0176d3',
-      marginBottom: '1rem',
-      paddingBottom: '0.5rem',
-      borderBottom: '2px solid #0176d3'
-    },
-    grid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(2, 1fr)',
-      gap: '1rem',
-      marginBottom: '1rem'
-    },
-    field: {
-      display: 'flex',
-      flexDirection: 'column'
-    },
-    label: {
-      fontSize: '0.875rem',
-      fontWeight: '600',
-      color: '#706e6b',
-      marginBottom: '0.25rem'
-    },
-    value: {
-      fontSize: '0.95rem',
-      color: '#181818'
-    },
-    table: {
-      width: '100%',
-      borderCollapse: 'collapse',
-      marginTop: '1rem'
-    },
-    thead: {
-      backgroundColor: '#f3f4f6',
-      borderBottom: '1px solid #d1d5db'
-    },
-    th: {
-      padding: '0.75rem',
-      textAlign: 'left',
-      fontSize: '0.875rem',
-      fontWeight: '600',
-      color: '#181818'
-    },
-    td: {
-      padding: '0.75rem',
-      borderBottom: '1px solid #e5e7eb',
-      fontSize: '0.875rem'
-    },
-    link: {
-      color: '#0176d3',
-      textDecoration: 'none',
-      cursor: 'pointer',
-      fontWeight: '500'
-    },
-    linkHover: {
-      textDecoration: 'underline'
-    },
-    emptyMessage: {
-      padding: '1rem',
-      textAlign: 'center',
-      color: '#706e6b',
-      fontSize: '0.9rem'
-    }
-  };
-
   return (
-    <div style={styles.modalOverlay} onClick={onClose}>
-      <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-        {/* HEADER */}
-        <div style={styles.header}>
-          <h2 style={styles.title}>Client 360 - {clientData?.customer_name || 'Loading...'}</h2>
-          <button style={styles.closeButton} onClick={onClose}>×</button>
+    <div style={overlayStyle} onClick={onClose}>
+      <div style={modalStyle} onClick={e => e.stopPropagation()}>
+
+        {/* Header Actions */}
+        <div style={headerActionsStyle}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={avatarPlaceholderStyle}>
+              {client?.first_name?.charAt(0)}{client?.last_name?.charAt(0)}
+            </div>
+            <div>
+              <h2 style={clientNameStyle}>{client?.first_name} {client?.last_name}</h2>
+              <p style={clientCodeStyle}>{client?.client_code || 'No Code'}</p>
+            </div>
+          </div>
+          <div>
+            <button onClick={() => setShowEdit(true)} style={editBtnStyle}>Edit Client</button>
+            <button onClick={onClose} style={closeBtnStyle}>×</button>
+          </div>
         </div>
 
-        {/* BODY */}
-        <div style={styles.body}>
-          {loading && !clientData ? (
-            <div style={styles.emptyMessage}>Loading client data...</div>
-          ) : (
-            <>
-              {/* PERSONAL INFORMATION */}
-              {clientData && (
-                <div style={styles.section}>
-                  <h3 style={styles.sectionTitle}>Personal Information</h3>
-                  <div style={styles.grid}>
-                    <div style={styles.field}>
-                      <label style={styles.label}>Customer Name</label>
-                      <div style={styles.value}>{clientData.customer_name || 'N/A'}</div>
-                    </div>
-                    <div style={styles.field}>
-                      <label style={styles.label}>Customer Code</label>
-                      <div style={styles.value}>{clientData.customer_code || 'N/A'}</div>
-                    </div>
-                    <div style={styles.field}>
-                      <label style={styles.label}>Email</label>
-                      <div style={styles.value}>{clientData.email || 'N/A'}</div>
-                    </div>
-                    <div style={styles.field}>
-                      <label style={styles.label}>Phone</label>
-                      <div style={styles.value}>{clientData.phone || 'N/A'}</div>
-                    </div>
-                    <div style={styles.field}>
-                      <label style={styles.label}>Date of Birth</label>
-                      <div style={styles.value}>{formatDate(clientData.date_of_birth)}</div>
-                    </div>
-                    <div style={styles.field}>
-                      <label style={styles.label}>ID Type</label>
-                      <div style={styles.value}>{clientData.id_type || 'N/A'}</div>
-                    </div>
-                    <div style={styles.field}>
-                      <label style={styles.label}>ID Number</label>
-                      <div style={styles.value}>{clientData.id_number || 'N/A'}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
+        {loading ? <p style={{ padding: '2rem', textAlign: 'center' }}>Loading Client Details...</p> : (
+          <div style={contentContainerStyle}>
 
-              {/* ADDRESS INFORMATION */}
-              {clientData && (
-                <div style={styles.section}>
-                  <h3 style={styles.sectionTitle}>Address Information</h3>
-                  <div style={styles.grid}>
-                    <div style={styles.field}>
-                      <label style={styles.label}>Street Address</label>
-                      <div style={styles.value}>{clientData.street_address || 'N/A'}</div>
-                    </div>
-                    <div style={styles.field}>
-                      <label style={styles.label}>Suburb</label>
-                      <div style={styles.value}>{clientData.suburb || 'N/A'}</div>
-                    </div>
-                    <div style={styles.field}>
-                      <label style={styles.label}>City</label>
-                      <div style={styles.value}>{clientData.city || 'N/A'}</div>
-                    </div>
-                    <div style={styles.field}>
-                      <label style={styles.label}>Postal Code</label>
-                      <div style={styles.value}>{clientData.postal_code || 'N/A'}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
+            {/* TOP SECTION: Contact & Details */}
+            <div style={topSectionStyle}>
 
-              {/* EMPLOYMENT INFORMATION */}
-              {clientData && (
-                <div style={styles.section}>
-                  <h3 style={styles.sectionTitle}>Employment Information</h3>
-                  <div style={styles.grid}>
-                    <div style={styles.field}>
-                      <label style={styles.label}>Employer Name</label>
-                      <div style={styles.value}>{clientData.employer_name || 'N/A'}</div>
-                    </div>
-                    <div style={styles.field}>
-                      <label style={styles.label}>Job Title</label>
-                      <div style={styles.value}>{clientData.job_title || 'N/A'}</div>
-                    </div>
-                    <div style={styles.field}>
-                      <label style={styles.label}>Employment Type</label>
-                      <div style={styles.value}>{clientData.employment_type || 'N/A'}</div>
-                    </div>
-                    <div style={styles.field}>
-                      <label style={styles.label}>Monthly Income</label>
-                      <div style={styles.value}>{formatCurrency(clientData.monthly_income)}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* Contact Info (Left) */}
+              <div style={{ flex: 1, paddingRight: '2rem', borderRight: '1px solid #eee' }}>
+                <h4 style={sectionTitleStyle}>Contact Info</h4>
+                <InfoRow label="Phone" value={client?.phone} />
+                <InfoRow label="Email" value={client?.email} />
+                <InfoRow label="Address" value={client?.address} />
+                <InfoRow label="City" value={client?.city} />
+                <InfoRow label="Region" value={client?.region} />
+                <InfoRow label="Postcode" value={client?.postal_code} />
+              </div>
 
-              {/* LOANS */}
-              <div style={styles.section}>
-                <h3 style={styles.sectionTitle}>Active Loans</h3>
-                {loans && loans.length > 0 ? (
-                  <table style={styles.table}>
-                    <thead style={styles.thead}>
-                      <tr>
-                        <th style={styles.th}>Loan Number</th>
-                        <th style={styles.th}>Product</th>
-                        <th style={styles.th}>Principal</th>
-                        <th style={styles.th}>Status</th>
-                        <th style={styles.th}>Date Opened</th>
+              {/* Other Details (Right) */}
+              <div style={{ flex: 1, paddingLeft: '2rem' }}>
+                <h4 style={sectionTitleStyle}>Client Details</h4>
+                <InfoRow label="Status" value={client?.status} />
+                <InfoRow label="Date of Birth" value={client?.date_of_birth} />
+                <InfoRow label="Gender" value={client?.gender} />
+                <InfoRow label="Occupation" value={client?.occupation} />
+                <InfoRow label="Credit Rating" value={client?.credit_rating} />
+              </div>
+
+            </div>
+
+            {/* BOTTOM SECTION: Loans */}
+            <div style={loansSectionStyle}>
+              <h3 style={loansTitleStyle}>Active Loans & History</h3>
+              <div style={tableContainerStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr style={headerRowStyle}>
+                      <th style={thStyle}>Loan #</th>
+                      <th style={thStyle}>Type</th>
+                      <th style={thStyle}>Source</th>
+                      <th style={thStyle}>Start Date</th>
+                      <th style={thStyle}>Maturity Date</th>
+                      <th style={thStyle}>Balance</th>
+                      <th style={thStyle}>Outstanding</th>
+                      <th style={thStyle}>Payments Made</th>
+                      <th style={thStyle}>Overdue</th>
+                      <th style={thStyle}>Next Due</th>
+                      <th style={thStyle}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loans.map(loan => (
+                      <tr key={loan.id} onClick={() => { setSelectedLoan(loan); setShowLoan(true); }} style={rowStyle}>
+                        <td style={tdStyle}>{loan.loan_number}</td>
+                        <td style={tdStyle}>{loan.loan_type || '-'}</td>
+                        <td style={tdStyle}>{loan.source || '-'}</td>
+                        <td style={tdStyle}>{formatDate(loan.start_date || loan.created_at)}</td>
+                        <td style={tdStyle}>{formatDate(loan.end_date)}</td>
+                        <td style={{ ...tdStyle, fontWeight: 'bold' }}>${formatMoney(loan.current_balance)}</td>
+                        <td style={tdStyle}>${formatMoney(loan.principal_outstanding)}</td>
+                        <td style={{ ...tdStyle, textAlign: 'center' }}>{loan.stats?.totalPaymentsMade || 0}</td>
+                        <td style={{ ...tdStyle, color: (loan.stats?.overdueAmount > 0) ? '#d32f2f' : 'inherit', fontWeight: (loan.stats?.overdueAmount > 0) ? 'bold' : 'normal' }}>
+                          ${formatMoney(loan.stats?.overdueAmount)}
+                        </td>
+                        <td style={tdStyle}>
+                          {loan.nextRepayment ? (
+                            <div>
+                              <div>{formatDate(loan.nextRepayment.due_date)}</div>
+                              <div style={{ fontSize: '0.8em', color: '#666' }}>${formatMoney(loan.nextRepayment.amount_due)}</div>
+                            </div>
+                          ) : '-'}
+                        </td>
+                        <td style={tdStyle}>
+                          <StatusBadge status={loan.status} />
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {loans.map((loan) => (
-                        <tr key={loan.id}>
-                          <td style={styles.td}>{loan.loan_number || 'N/A'}</td>
-                          <td style={styles.td}>{loan.product_name || 'N/A'}</td>
-                          <td style={styles.td}>{formatCurrency(loan.principal_amount)}</td>
-                          <td style={styles.td}>{loan.status || 'N/A'}</td>
-                          <td style={styles.td}>{formatDate(loan.date_opened)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div style={styles.emptyMessage}>No loans found for this client.</div>
-                )}
+                    ))}
+                  </tbody>
+                </table>
               </div>
+            </div>
 
-              {/* TRANSACTIONS LINK */}
-              <div style={styles.section}>
-                <h3 style={styles.sectionTitle}>Transaction History</h3>
-                <div style={styles.emptyMessage}>
-                  View all transactions for this client:{' '}
-                  <a 
-                    href={`/transactions?client=${clientId}`}
-                    style={styles.link}
-                    onMouseEnter={(e) => Object.assign(e.target.style, styles.linkHover)}
-                    onMouseLeave={(e) => Object.assign(e.target.style, { textDecoration: 'none' })}
-                  >
-                    Click here →
-                  </a>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+          </div>
+        )}
       </div>
+
+      {showLoan && <Loans360Modal loan={selectedLoan} onClose={() => setShowLoan(false)} />}
+      {showEdit && <EditClientModal client={client} onClose={() => setShowEdit(false)} onSave={setClient} />}
     </div>
+  );
+}
+
+// Helper Components & Functions
+const InfoRow = ({ label, value }) => (
+  <div style={{ marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+    <span style={{ color: '#666', fontSize: '0.9rem' }}>{label}:</span>
+    <span style={{ fontWeight: 500, fontSize: '0.9rem', textAlign: 'right' }}>{value || '-'}</span>
+  </div>
+);
+
+const StatusBadge = ({ status }) => {
+  const isGood = status === 'active' || status === 'paid';
+  return (
+    <span style={{
+      padding: "0.25rem 0.5rem", borderRadius: "0.25rem", fontSize: "0.75rem", fontWeight: 600, textTransform: 'capitalize',
+      backgroundColor: isGood ? "#d4edda" : "#f8d7da",
+      color: isGood ? "#155724" : "#721c24"
+    }}>
+      {status}
+    </span>
   );
 };
 
-export default Client360Modal;
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
+const formatMoney = (amount) => {
+  return (amount || 0).toFixed(2);
+};
+
+// Styles
+const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, backdropFilter: 'blur(2px)' };
+const modalStyle = { background: '#f8f9fa', borderRadius: '0.75rem', width: '95%', maxWidth: '1400px', height: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' };
+const headerActionsStyle = { padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', borderBottom: '1px solid #eee' };
+const editBtnStyle = { background: '#0176d3', color: '#fff', border: 'none', padding: '0.5rem 1rem', borderRadius: '0.25rem', marginRight: '1rem', cursor: 'pointer', fontWeight: 500 };
+const closeBtnStyle = { background: 'none', border: 'none', fontSize: '2rem', lineHeight: '1rem', cursor: 'pointer', color: '#666' };
+
+const contentContainerStyle = { padding: '2rem', overflowY: 'auto', height: '100%' };
+
+const topSectionStyle = {
+  display: 'flex',
+  background: '#fff',
+  padding: '2rem',
+  borderRadius: '0.5rem',
+  boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+  marginBottom: '2rem',
+  gap: '2rem'
+};
+
+const avatarPlaceholderStyle = { width: '50px', height: '50px', background: '#0176d3', color: '#fff', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '1.2rem', fontWeight: 'bold', marginRight: '1rem' };
+const clientNameStyle = { margin: 0, color: '#1a1a1a', fontSize: '1.2rem' };
+const clientCodeStyle = { margin: 0, color: '#666', fontSize: '0.9rem' };
+const sectionTitleStyle = { color: '#0176d3', borderBottom: '2px solid #0176d3', paddingBottom: '0.5rem', marginBottom: '1rem', marginTop: 0 };
+
+const loansSectionStyle = {};
+const loansTitleStyle = { margin: '0 0 1rem', color: '#1a1a1a', fontSize: '1.2rem' };
+const tableContainerStyle = { background: '#fff', borderRadius: '0.5rem', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', overflow: 'hidden' };
+const tableStyle = { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' };
+const headerRowStyle = { background: '#f1f3f5', borderBottom: '2px solid #dee2e6' };
+const thStyle = { padding: '1rem', textAlign: 'left', fontWeight: 600, color: '#495057', whiteSpace: 'nowrap' };
+const rowStyle = { borderBottom: '1px solid #eee', cursor: 'pointer', transition: 'background 0.2s' };
+const tdStyle = { padding: '1rem', color: '#212529', verticalAlign: 'middle' };
