@@ -1,0 +1,20 @@
+create table public.interest_calculations (
+  id uuid not null default gen_random_uuid (),
+  loan_id uuid not null,
+  client_id uuid not null,
+  calculation_date date not null,
+  outstanding_balance numeric(12, 2) null,
+  daily_interest numeric(12, 2) null,
+  interest_rate numeric(5, 2) null,
+  status character varying(50) null default 'calculated'::character varying,
+  created_at timestamp without time zone null default now(),
+  constraint interest_calculations_pkey primary key (id),
+  constraint interest_calculations_client_id_fkey foreign KEY (client_id) references clients (id) on delete CASCADE,
+  constraint interest_calculations_loan_id_fkey foreign KEY (loan_id) references loans (id) on delete CASCADE
+) TABLESPACE pg_default;
+
+create index IF not exists idx_interest_calculations_loan_id on public.interest_calculations using btree (loan_id) TABLESPACE pg_default;
+
+create index IF not exists idx_interest_calculations_calculation_date on public.interest_calculations using btree (calculation_date) TABLESPACE pg_default;
+
+create index IF not exists idx_interest_calculations_client_id on public.interest_calculations using btree (client_id) TABLESPACE pg_default;

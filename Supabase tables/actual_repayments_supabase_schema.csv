@@ -1,0 +1,1 @@
+"id (uuid, pk)","loan_id (uuid, fk)",due_date (date),amount_due (numeric),amount_paid (numeric),payment_date (date),status (text),created_at (timestamptz)

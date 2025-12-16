@@ -1,0 +1,19 @@
+create table public.fee_applications (
+  id uuid not null default gen_random_uuid (),
+  loan_id uuid not null,
+  client_id uuid not null,
+  fee_type character varying(50) not null,
+  fee_amount numeric(12, 2) not null,
+  application_date date not null,
+  paid_date date null,
+  status character varying(50) null default 'applied'::character varying,
+  created_at timestamp without time zone null default now(),
+  updated_at timestamp without time zone null default now(),
+  constraint fee_applications_pkey primary key (id),
+  constraint fee_applications_client_id_fkey foreign KEY (client_id) references clients (id) on delete CASCADE,
+  constraint fee_applications_loan_id_fkey foreign KEY (loan_id) references loans (id) on delete CASCADE
+) TABLESPACE pg_default;
+
+create index IF not exists idx_fee_applications_loan_id on public.fee_applications using btree (loan_id) TABLESPACE pg_default;
+
+create index IF not exists idx_fee_applications_client_id on public.fee_applications using btree (client_id) TABLESPACE pg_default;

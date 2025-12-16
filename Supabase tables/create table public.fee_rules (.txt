@@ -1,0 +1,22 @@
+create table public.fee_rules (
+  id uuid not null default gen_random_uuid (),
+  name text not null,
+  description text null,
+  calculation_method text null,
+  value numeric(8, 2) null,
+  created_at timestamp with time zone null default now(),
+  fee_type character varying(50) null,
+  frequency character varying(50) null,
+  trigger_condition character varying(255) null,
+  applicable_to_status character varying(255) null,
+  waivable boolean null default false,
+  requires_approval boolean null default false,
+  status character varying(20) null default 'active'::character varying,
+  updated_at timestamp with time zone null default now(),
+  constraint fee_rules_pkey primary key (id),
+  constraint fee_rules_calculation_method_check check (
+    (
+      calculation_method = any (array['flat'::text, 'percentage'::text])
+    )
+  )
+) TABLESPACE pg_default;

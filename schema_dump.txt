@@ -18,7 +18,10 @@
   "status",
   "created_at",
   "updated_at",
-  "region"
+  "region",
+  "gender",
+  "occupation",
+  "credit_rating"
 ]
 
 --- INSPECTING LOANS ---
@@ -42,5 +45,7 @@
   "repayment_amount",
   "term_periods",
   "total_repayable",
-  "instalments_due"
+  "instalments_due",
+  "loan_type",
+  "source"
 ]

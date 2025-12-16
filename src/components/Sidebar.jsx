@@ -1,134 +1,114 @@
+// src/components/Sidebar.jsx
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
-const menuItems = [
-  { path: '/', label: 'Dashboard' },
-  { path: '/clients', label: 'Clients' },
-  { path: '/loans', label: 'Loans' },
-  { path: '/payment-entry', label: 'Payment Entry' },
-  { path: '/repayments', label: 'Repayments' },
-  { path: '/reports', label: 'Reports' },
-];
+const logoUrl = 'https://storage.googleapis.com/msgsndr/1JWftY3EO8g1C5Mo47fV/media/6599278fae139623964a006c.png';
 
-export default function Sidebar({ collapsed }) {
+export default function Sidebar({ collapsed, setCollapsed }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const currentPath = location.pathname;
+
+  const items = [
+    { key: '/dashboard', label: 'Dashboard', icon: '📊' },
+    { key: '/clients', label: 'Clients', icon: '👥' },
+    { key: '/loans', label: 'Loans', icon: '💰' },
+    { key: '/payment-entry', label: 'Payment Entry', icon: '💳' },
+    { key: '/repayments', label: 'Repayments', icon: '📝' },
+    { key: '/reports', label: 'Reports', icon: '📈' },
+  ];
+
+  const handleNavigation = (path) => {
+    navigate(path);
+    // On mobile we might want to collapse the sidebar here
+    if (window.innerWidth <= 768) {
+      setCollapsed(true);
+    }
+  };
+
   return (
-    <div
-      style={{
-        width: collapsed ? '70px' : '250px',
-        backgroundColor: '#003366',
-        color: '#ffffff',
-        padding: '1rem',
-        transition: 'width 0.3s ease',
-        display: 'flex',
-        flexDirection: 'column',
-        overflowY: 'auto',
-        flexShrink: 0,
-      }}
-    >
-      {/* User Profile */}
-      <div
+    <div style={{
+      width: collapsed ? '70px' : '250px',
+      background: '#ffffff',
+      color: '#181818',
+      padding: '1rem',
+      transition: 'width 0.3s',
+      display: 'flex',
+      flexDirection: 'column',
+      overflowY: 'auto',
+      flexShrink: 0,
+      position: 'relative',
+      borderRight: '1px solid #e0e0e0',
+      height: 'calc(100vh - 60px)'
+    }}>
+      {/* Hamburger Button */}
+      <button
+        onClick={() => setCollapsed(!collapsed)}
         style={{
-          marginBottom: '2rem',
-          textAlign: 'center',
-          borderBottom: '1px solid rgba(255,255,255,0.15)',
-          paddingBottom: '1rem',
+          background: 'none',
+          border: 'none',
+          color: '#181818',
+          fontSize: '1.5rem',
+          cursor: 'pointer',
+          marginBottom: '1.5rem',
+          padding: '0.5rem',
+          textAlign: 'center'
         }}
       >
-        <div
-          style={{
-            width: '50px',
-            height: '50px',
-            borderRadius: '50%',
-            backgroundColor: '#ffffff',
-            color: '#003366',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '1.4rem',
-            fontWeight: 'bold',
-            margin: '0 auto 0.5rem',
-          }}
-        >
-          U
-        </div>
+        ☰
+      </button>
 
-        {!collapsed && (
-          <>
-            <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
-              User Name
-            </div>
-            <button
+      {/* Menu Items */}
+      <div style={{ flex: 1 }}>
+        {items.map(item => {
+          const isActive = currentPath === item.key || (item.key !== '/dashboard' && currentPath.startsWith(item.key));
+
+          return (
+            <div
+              key={item.key}
+              onClick={() => handleNavigation(item.key)}
               style={{
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.6)',
-                color: '#ffffff',
-                padding: '0.3rem 0.8rem',
-                borderRadius: '4px',
-                fontSize: '0.8rem',
+                padding: '0.75rem 1rem',
+                marginBottom: '0.5rem',
                 cursor: 'pointer',
+                backgroundColor: isActive ? '#0176d3' : 'transparent',
+                color: isActive ? '#fff' : '#181818',
+                borderRadius: '4px',
+                textAlign: collapsed ? 'center' : 'left',
+                fontSize: '0.9rem',
+                transition: 'background 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem'
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.background = '#f0f0f0';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.background = 'transparent';
+                }
               }}
             >
-              Logout
-            </button>
-          </>
-        )}
+              <span>{item.icon}</span>
+              {!collapsed && item.label}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Navigation */}
-      <div style={{ flex: 1 }}>
-        {menuItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            style={({ isActive }) => ({
-              display: 'block',
-              padding: '0.75rem 1rem',
-              marginBottom: '0.5rem',
-              borderRadius: '4px',
-              backgroundColor: isActive ? '#0176d3' : 'transparent',
-              color: '#ffffff',
-              textDecoration: 'none',
-              textAlign: collapsed ? 'center' : 'left',
-              transition: 'background-color 0.2s ease',
-            })}
-          >
-            {collapsed ? item.label.charAt(0) : item.label}
-          </NavLink>
-        ))}
+      {/* Whizrock Logo at Bottom */}
+      <div style={{
+        textAlign: 'center',
+        paddingTop: '1rem',
+        borderTop: '1px solid #e0e0e0',
+        marginTop: 'auto'
+      }}>
+        <img src={logoUrl} alt="Whizrock" style={{ height: '24px', width: 'auto', opacity: 0.6 }} />
+        <div style={{ fontSize: '0.7rem', color: '#706e6b', marginTop: '0.5rem', textAlign: 'center' }}>Powered by Whizrock</div>
       </div>
-
-      {/* Footer */}
-      {!collapsed && (
-        <div
-          style={{
-            marginTop: '1rem',
-            textAlign: 'center',
-            fontSize: '0.75rem',
-            color: 'rgba(255,255,255,0.7)',
-          }}
-        >
-          <div style={{ marginBottom: '0.5rem' }}>
-            <img
-              src="/whizrock-icon.png"
-              alt="Whizrock"
-              style={{ width: '24px', opacity: 0.85 }}
-            />
-          </div>
-          <div>Powered by</div>
-          <a
-            href="https://whizrock.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              color: '#ffffff',
-              textDecoration: 'none',
-              fontWeight: 'bold',
-            }}
-          >
-            Whizrock
-          </a>
-        </div>
-      )}
     </div>
   );
 }

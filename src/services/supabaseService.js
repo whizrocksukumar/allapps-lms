@@ -1,252 +1,284 @@
-// src/services/supabaseService.js
+// src/services/supabaseService.js (updated)
 import { createClient } from '@supabase/supabase-js';
 
-// ------------------------------------------------------------------
-//  SUPABASE CLIENT INITIALISATION
-// ------------------------------------------------------------------
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables');
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// ------------------------------------------------------------------
-//  CLIENTS
-// ------------------------------------------------------------------
-export async function getClients() {
-  const { data, error } = await supabase
-    .from('clients')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) return { success: false, message: error.message };
-  return { success: true, data };
-}
-
-export async function getClientById(clientId) {
-  const { data, error } = await supabase
-    .from('clients')
-    .select('*')
-    .eq('id', clientId)
-    .single();
-  if (error) return { success: false, message: error.message };
-  return { success: true, data };
-}
-
-export async function updateClient(id, updates) {
-  const { data, error } = await supabase
-    .from('clients')
-    .update(updates)
-    .eq('id', id)
-    .select();
-  if (error) return { success: false, message: error.message };
-  return { success: true, data: data[0] };
-}
-
-// ------------------------------------------------------------------
-//  LOANS
-// ------------------------------------------------------------------
-export async function getLoansByClient(clientId) {
-  const { data, error } = await supabase
-    .from('loans')
-    .select('*, clients!inner(code, first_name, last_name)')
-    .eq('client_id', clientId);
-  if (error) return { success: false, message: error.message };
-  return { success: true, data };
-}
-
-export async function getLoanDetails(loanId) {
-  const { data, error } = await supabase
-    .from('loans')
-    .select('*')
-    .eq('id', loanId)
-    .single();
-  if (error) return { success: false, message: error.message };
-  return { success: true, data };
-}
-
-export async function getLoansWithClientNames() {
+export const getLoansWithClientNames = async () => {
   try {
     const { data, error } = await supabase
       .from('loans')
-      .select(`
-        id,
-        loan_number,
-        current_balance,
-        status,
-        instalments_due,
-        clients!inner (
-          id,
-          first_name,
-          last_name,
-          city,
-          region
-        )
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
+
     if (error) throw error;
-    return {
-      success: true,
-      data: data || [],
-      message: 'Loans loaded successfully'
-    };
-  } catch (err) {
-    console.error('getLoansWithClientNames error:', err);
-    return {
-      success: false,
-      data: [],
-      message: err.message || 'Failed to load loans'
-    };
+
+    if (data && data.length > 0) {
+      const clientIds = [...new Set(data.map(l => l.client_id))];
+      const { data: clients, error: clientError } = await supabase
+        .from('clients')
+        .select('id, client_code, first_name, last_name')
+        .in('id', clientIds);
+
+      if (!clientError && clients) {
+        const clientMap = {};
+        clients.forEach(c => {
+          clientMap[c.id] = c;
+        });
+
+        return data.map(loan => ({
+          ...loan,
+          client_name: `${clientMap[loan.client_id]?.first_name || ''} ${clientMap[loan.client_id]?.last_name || ''}`.trim() || 'Unknown',
+          client_code: clientMap[loan.client_id]?.client_code || '',
+        }));
+      }
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching loans:', error);
+    return [];
   }
-}
+};
 
-export async function getRepayments(loanId) {
-  const { data, error } = await supabase
-    .from('repayment_schedule')
-    .select('*')
-    .eq('loan_id', loanId)
-    .order('due_date', { ascending: true });
-  if (error) return { success: false, message: error.message };
-  return { success: true, data };
-}
+export { supabase };
 
-export async function getNextRepayment(loanId) {
-  const { data, error } = await supabase
-    .from('repayment_schedule')
-    .select('*')
-    .eq('loan_id', loanId)
-    .eq('status', 'pending')
-    .order('due_date', { ascending: true })
-    .limit(1)
-    .single();
+export const getClients = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-  if (error && error.code !== 'PGRST116') { // PGRST116 is "The result contains 0 rows"
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching clients:', error);
+    return [];
+  }
+};
+
+export const addClient = async (clientData) => {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .insert([clientData])
+      .select();
+
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (error) {
+    console.error('Error adding client:', error);
+    return null;
+  }
+};
+
+export const updateClient = async (id, clientData) => {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .update(clientData)
+      .eq('id', id)
+      .select();
+
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (error) {
+    console.error('Error updating client:', error);
+    return null;
+  }
+};
+
+export const deleteClient = async (id) => {
+  try {
+    const { error } = await supabase
+      .from('clients')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error deleting client:', error);
+    return false;
+  }
+};
+
+export const addLoan = async (loanData) => {
+  try {
+    const { data, error } = await supabase
+      .from('loans')
+      .insert([loanData])
+      .select();
+
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (error) {
+    console.error('Error adding loan:', error);
+    return null;
+  }
+};
+
+export const generateLoanSchedule = async (loanId, principal, rate, term) => {
+  try {
+    const schedule = [];
+    const monthlyRate = rate / 100 / 12;
+    const monthlyPayment = (principal * monthlyRate * Math.pow(1 + monthlyRate, term)) / (Math.pow(1 + monthlyRate, term) - 1);
+
+    let balance = principal;
+    for (let i = 1; i <= term; i++) {
+      const interestPayment = balance * monthlyRate;
+      const principalPayment = monthlyPayment - interestPayment;
+      balance -= principalPayment;
+
+      schedule.push({
+        loan_id: loanId,
+        month: i,
+        payment_amount: monthlyPayment,
+        principal_payment: principalPayment,
+        interest_payment: interestPayment,
+        remaining_balance: Math.max(0, balance),
+      });
+    }
+
+    return schedule;
+  } catch (error) {
+    console.error('Error generating loan schedule:', error);
+    return [];
+  }
+};
+
+export const getLoansByClient = async (clientId) => {
+  try {
+    const { data, error } = await supabase
+      .from('loans')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { success: true, data: data || [] };
+  } catch (error) {
+    console.error('Error fetching loans for client:', error);
     return { success: false, message: error.message };
   }
-  return { success: true, data: data || null };
-}
+};
 
-export async function getLoanStatistics(loanId) {
-  const { data, error } = await supabase
-    .from('repayment_schedule')
-    .select('*')
-    .eq('loan_id', loanId);
-
-  if (error) return { success: false, message: error.message };
-
-  const totalPaymentsMade = data.filter(r => r.status === 'paid').length;
-
-  // Calculate overdue amount: sum of amount_due for pending items where due_date < today
-  const today = new Date().toISOString().split('T')[0];
-  const overdueAmount = data
-    .filter(r => r.status === 'pending' && r.due_date < today)
-    .reduce((sum, r) => sum + (r.amount_due || 0), 0);
-
-  return { success: true, data: { totalPaymentsMade, overdueAmount } };
-}
-
-export async function allocatePayment(loanId, paymentAmount) {
+export const getClientById = async (clientId) => {
   try {
-    const { data: loan, error: loanError } = await supabase
-      .from('loans')
-      .select('current_balance, principal_outstanding, interest_accrued, fees_outstanding')
-      .eq('id', loanId)
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', clientId)
       .single();
 
-    if (loanError) throw loanError;
-
-    let remaining = paymentAmount;
-    const allocation = { fees: 0, interest: 0, principal: 0 };
-
-    // 1. Pay Fees
-    if (loan.fees_outstanding > 0) {
-      allocation.fees = Math.min(remaining, loan.fees_outstanding);
-      remaining -= allocation.fees;
-    }
-
-    // 2. Pay Interest
-    if (remaining > 0 && loan.interest_accrued > 0) {
-      allocation.interest = Math.min(remaining, loan.interest_accrued);
-      remaining -= allocation.interest;
-    }
-
-    // 3. Pay Principal
-    if (remaining > 0) {
-      allocation.principal = Math.min(remaining, loan.principal_outstanding);
-      remaining -= allocation.principal;
-    }
-
-    // 4. Update loan
-    const newBalance = Math.max(0, loan.current_balance - paymentAmount);
-    const updates = {
-      current_balance: newBalance,
-      fees_outstanding: Math.max(0, loan.fees_outstanding - allocation.fees),
-      interest_accrued: Math.max(0, loan.interest_accrued - allocation.interest),
-      principal_outstanding: Math.max(0, loan.principal_outstanding - allocation.principal),
-    };
-
-    const { error: updateError } = await supabase
-      .from('loans')
-      .update(updates)
-      .eq('id', loanId);
-
-    if (updateError) throw updateError;
-
-    // 5. Log transaction
-    await supabase.from('transactions').insert({
-      loan_id: loanId,
-      type: 'payment',
-      amount: paymentAmount,
-      allocation: JSON.stringify(allocation),
-      status: 'completed'
-    });
-
-    return { success: true, allocation, newBalance };
+    if (error) throw error;
+    return data;
   } catch (error) {
-    console.error('Payment allocation error:', error);
-    return { success: false, message: error.message };
+    console.error('Error fetching client:', error);
+    return null;
   }
-}
+};
 
-// ------------------------------------------------------------------
-//  ADD REPAYMENT (Payment Entry Page)
-// ------------------------------------------------------------------
-export async function addRepayment({ loan_id, date, amount, reference, notes }) {
+export const addRepayment = async (repaymentData) => {
   try {
-    // 1. Record payment
-    const { error: paymentError } = await supabase
-      .from('payment_reconciliation')
-      .insert({
+    const { loan_id, date, amount, reference, notes } = repaymentData;
+
+    const { data, error } = await supabase
+      .from('payments')
+      .insert([{
         loan_id,
         payment_date: date,
         amount,
         reference,
         notes,
-        status: 'allocated'
-      });
+        created_at: new Date().toISOString()
+      }])
+      .select();
 
-    if (paymentError) throw paymentError;
-
-    // 2. Allocate payment
-    const allocationResult = await allocatePayment(loan_id, amount);
-    if (!allocationResult.success) throw new Error(allocationResult.message);
-
-    return { success: true, message: 'Payment recorded and allocated' };
-  } catch (err) {
-    console.error('addRepayment error:', err);
-    return { success: false, message: err.message };
+    if (error) throw error;
+    return { success: true, data: data?.[0] };
+  } catch (error) {
+    console.error('Error adding repayment:', error);
+    return { success: false, message: error.message };
   }
-}
+};
 
-// ------------------------------------------------------------------
-//  LOAN PRODUCTS (for Calculator)
-// ------------------------------------------------------------------
-export async function getLoanProducts() {
-  const { data, error } = await supabase
-    .from('loan_products')
-    .select('id, product_name, annual_interest_rate');
-  if (error) return { success: false, message: error.message };
-  return { success: true, data };
-}
+export const allocatePayment = async (paymentData) => {
+  try {
+    const { data, error } = await supabase
+      .from('payments')
+      .insert([paymentData])
+      .select();
+
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (error) {
+    console.error('Error allocating payment:', error);
+    return null;
+  }
+};
+
+export const getNextRepayment = async (loanId) => {
+  try {
+    const { data, error } = await supabase
+      .from('repayment_schedule')
+      .select('due_date, scheduled_amount')
+      .eq('loan_id', loanId)
+      .eq('status', 'pending')
+      .order('due_date', { ascending: true })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+
+    return {
+      data: data ? {
+        due_date: data.due_date,
+        amount_due: data.scheduled_amount
+      } : null
+    };
+  } catch (error) {
+    console.error('Error fetching next repayment:', error);
+    return { data: null };
+  }
+};
+
+export const getLoanStatistics = async (loanId) => {
+  try {
+    const { data, error } = await supabase
+      .from('repayment_schedule')
+      .select('scheduled_amount, status, due_date')
+      .eq('loan_id', loanId);
+
+    if (error) throw error;
+
+    let totalPaymentsMade = 0;
+    let overdueAmount = 0;
+    const now = new Date();
+
+    if (data) {
+      data.forEach(r => {
+        if (r.status === 'paid') {
+          totalPaymentsMade++;
+        } else if (r.status === 'pending') {
+          const dueDate = new Date(r.due_date);
+          if (dueDate < now) {
+            overdueAmount += r.scheduled_amount;
+          }
+        }
+      });
+    }
+
+    return {
+      data: {
+        totalPaymentsMade,
+        overdueAmount
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching loan statistics:', error);
+    return { data: { totalPaymentsMade: 0, overdueAmount: 0 } };
+  }
+};

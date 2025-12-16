@@ -1,0 +1,20 @@
+create table public.repayments (
+  id uuid not null default gen_random_uuid (),
+  loan_id uuid null,
+  due_date date null,
+  amount_due numeric(14, 2) null,
+  amount_paid numeric(14, 2) null default 0,
+  payment_date date null,
+  status text null default 'pending'::text,
+  created_at timestamp with time zone null default now(),
+  constraint repayments_pkey primary key (id),
+  constraint repayments_status_check check (
+    (
+      status = any (
+        array['pending'::text, 'paid'::text, 'overdue'::text]
+      )
+    )
+  )
+) TABLESPACE pg_default;
+
+create index IF not exists idx_repayments_loan on public.repayments using btree (loan_id) TABLESPACE pg_default;

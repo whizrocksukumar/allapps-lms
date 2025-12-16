@@ -1,31 +1,27 @@
 import React from 'react';
 
-export default function PageHeader({ title, actions }) {
-    return (
-        <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '1rem',
-            marginBottom: '1.5rem'
-        }}>
-            <h1 style={{
-                margin: 0,
-                color: '#0176d3',
-                fontSize: '1.75rem',
-                fontWeight: 600
-            }}>
-                {title}
-            </h1>
-            <div style={{
-                display: 'flex',
-                gap: '0.75rem',
-                flexWrap: 'wrap',
-                alignItems: 'center'
-            }}>
-                {actions}
-            </div>
-        </div>
-    );
+export default function PageHeader({ title, subtitle, actions }) {
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '1.5rem 2rem',
+      background: '#fff',
+      borderBottom: '1px solid #e0e0e0',
+      marginBottom: '2rem'
+    }}>
+      <div>
+        <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#1a1a1a' }}>{title}</h1>
+        {subtitle && (
+          <p style={{ margin: '0.25rem 0 0', color: '#666', fontSize: '0.9rem' }}>
+            {subtitle}
+          </p>
+        )}
+      </div>
+      <div>
+        {actions}
+      </div>
+    </div>
+  );
 }

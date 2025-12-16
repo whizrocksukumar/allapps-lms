@@ -1,4 +1,4 @@
-// src/App.jsx - FINAL
+// src/App.jsx - FULL MVP WITH ROOT ROUTE
 import React, { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
 import Loans from './pages/Loans';
 import PaymentEntry from './pages/PaymentEntry';
+import Repayments from './pages/Repayments';
 
 export default function App() {
   const [collapsed, setCollapsed] = useState(false);
@@ -15,20 +16,15 @@ export default function App() {
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#f8f9fa', fontFamily: 'system-ui', width: '100%' }}>
       <Navbar onToggle={() => setCollapsed(!collapsed)} />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', width: '100%' }}>
-        <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
-        <main style={{
-          flex: 1,
-          overflow: 'auto',
-          minWidth: 0,
-          padding: '1.5rem'
-        }}>
+        <Sidebar collapsed={collapsed} />
+        <main style={{ flex: 1, padding: '1.5rem', overflow: 'auto', minWidth: 0, width: '100%' }}>
           <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/" element={<Dashboard />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/loans" element={<Loans />} />
             <Route path="/payment-entry" element={<PaymentEntry />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/repayments" element={<Repayments />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  getclientById,
-  getLoansForclient,
+  getClientById,
+  getLoansByClient,
 } from '../services/supabaseService';
 
 const ClientSummary = () => {
@@ -18,10 +18,10 @@ const ClientSummary = () => {
 
   const fetchData = async () => {
     try {
-      const clientData = await getclientById(clientId);
+      const clientData = await getClientById(clientId);
       setClient(clientData);
-      const loansData = await getLoansForclient(clientId);
-      setLoans(loansData || []);
+      const loansResult = await getLoansByClient(clientId);
+      setLoans(loansResult.success ? loansResult.data : []);
     } catch (error) {
       console.error('Error:', error);
     }
@@ -37,12 +37,12 @@ const ClientSummary = () => {
       <button onClick={() => navigate('/clients')} style={{ marginBottom: '20px' }}>
         ← Back to Clients
       </button>
-      
+
       <h1>{client.full_name}</h1>
       <p><strong>Code:</strong> {client.code}</p>
       <p><strong>Email:</strong> {client.email}</p>
       <p><strong>Phone:</strong> {client.phone || 'N/A'}</p>
-      
+
       <h2>Active Loans: {loans.filter(l => l.status === 'active').length}</h2>
       {loans.length === 0 ? (
         <p>No loans found</p>

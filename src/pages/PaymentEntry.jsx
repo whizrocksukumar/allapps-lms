@@ -20,11 +20,13 @@ export default function PaymentEntry() {
   // Load all clients
   useEffect(() => {
     async function loadClients() {
-      const result = await getClients();
-      if (result.success) {
-        setClients(result.data);
+      const data = await getClients();
+      // Service returns array directly or empty array on error
+      if (Array.isArray(data)) {
+        setClients(data);
       } else {
-        console.error(result.message);
+        console.error("Failed to load clients: Expected array");
+        setClients([]);
       }
     }
     loadClients();
@@ -37,6 +39,11 @@ export default function PaymentEntry() {
         const result = await getLoansByClient(selectedClient);
         if (result.success) {
           setLoans(result.data);
+          // Auto-select 'Active' loan if only one exists or default to first active
+          const activeLoan = result.data.find(l => l.status === 'Active' || l.status === 'active');
+          if (activeLoan) {
+            setSelectedLoan(activeLoan.id);
+          }
         } else {
           console.error(result.message);
         }

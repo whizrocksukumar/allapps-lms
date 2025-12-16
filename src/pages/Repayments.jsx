@@ -1,6 +1,6 @@
-// src/pages/Repayments.jsx
 import React, { useEffect, useState } from "react";
 import { supabase } from "../services/supabaseService.js";
+import { formatDate } from "../utils/dateFormatter";
 import Client360Modal from "../components/Client360Modal.jsx";
 
 export default function Repayments({ loanId }) {
@@ -93,11 +93,7 @@ export default function Repayments({ loanId }) {
                 </td>
                 <td style={s.td}>
                   {(() => {
-                    const d = new Date(r.due_date);
-                    const day = String(d.getDate()).padStart(2, '0');
-                    const month = String(d.getMonth() + 1).padStart(2, '0');
-                    const year = d.getFullYear();
-                    return `${day}-${month}-${year}`;
+                    return formatDate(r.due_date);
                   })()}
                 </td>
                 <td style={s.td}>${r.amount.toFixed(2)}</td>

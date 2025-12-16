@@ -1,0 +1,21 @@
+create table public.transactions (
+  id uuid not null default gen_random_uuid (),
+  loan_id uuid not null,
+  client_id uuid not null,
+  transaction_date timestamp without time zone null default now(),
+  transaction_type character varying(50) not null,
+  balance numeric(12, 2) not null,
+  reference_number character varying(100) null,
+  status character varying(50) null default 'completed'::character varying,
+  created_at timestamp without time zone null default now(),
+  notes text null,
+  debit numeric null,
+  credit numeric null,
+  constraint transactions_pkey primary key (id),
+  constraint transactions_client_id_fkey foreign KEY (client_id) references clients (id) on delete CASCADE,
+  constraint transactions_loan_id_fkey foreign KEY (loan_id) references loans (id) on delete CASCADE
+) TABLESPACE pg_default;
+
+create index IF not exists idx_transactions_loan_id on public.transactions using btree (loan_id) TABLESPACE pg_default;
+
+create index IF not exists idx_transactions_client_id on public.transactions using btree (client_id) TABLESPACE pg_default;
