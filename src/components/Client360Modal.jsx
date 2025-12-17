@@ -4,6 +4,13 @@ import { supabase, getNextRepayment, getLoanStatistics } from "../services/supab
 import Loans360Modal from "./Loans360Modal";
 import EditClientModal from "./EditClientModal";
 
+// Helper to format phone for href
+const formatPhoneLink = (phone) => {
+  if (!phone) return '';
+  const cleaned = phone.replace(/[^0-9+]/g, '');
+  return `tel:${cleaned}`;
+};
+
 export default function Client360Modal({ isOpen, onClose, clientId }) {
   const [client, setClient] = useState(null);
   const [loans, setLoans] = useState([]);
@@ -80,30 +87,64 @@ export default function Client360Modal({ isOpen, onClose, clientId }) {
           </div>
         </div>
 
+        {/* NEW CONTACT HEADER */}
+        {!loading && (
+          <div style={contactHeaderStyle}>
+            {client?.email && (
+              <span style={contactItemStyle}>
+                📧 <a href={`mailto:${client.email}`} style={linkStyle}>{client.email}</a>
+              </span>
+            )}
+            {client?.mobile_phone && (
+              <span style={contactItemStyle}>
+                📱 Mob: <a href={formatPhoneLink(client.mobile_phone)} style={linkStyle}>{client.mobile_phone}</a>
+              </span>
+            )}
+            {client?.work_phone && (
+              <span style={contactItemStyle}>
+                🏢 Work: <a href={formatPhoneLink(client.work_phone)} style={linkStyle}>{client.work_phone}</a>
+              </span>
+            )}
+            {client?.home_phone && (
+              <span style={contactItemStyle}>
+                🏠 Home: <a href={formatPhoneLink(client.home_phone)} style={linkStyle}>{client.home_phone}</a>
+              </span>
+            )}
+          </div>
+        )}
+
         {loading ? <p style={{ padding: '2rem', textAlign: 'center' }}>Loading Client Details...</p> : (
           <div style={contentContainerStyle}>
 
             {/* TOP SECTION: Contact & Details */}
             <div style={topSectionStyle}>
 
-              {/* Contact Info (Left) */}
+              {/* LEFT CARD: Contact Info */}
               <div style={{ flex: 1, paddingRight: '2rem', borderRight: '1px solid #eee' }}>
                 <h4 style={sectionTitleStyle}>Contact Info</h4>
-                <InfoRow label="Phone" value={client?.phone} />
-                <InfoRow label="Email" value={client?.email} />
+                <InfoRow label="Company Name" value={client?.company_name} />
+                <div style={dividerStyle}></div>
                 <InfoRow label="Address" value={client?.address} />
                 <InfoRow label="City" value={client?.city} />
                 <InfoRow label="Region" value={client?.region} />
                 <InfoRow label="Postcode" value={client?.postal_code} />
+                <div style={dividerStyle}></div>
+                <InfoRow label="Employment Status" value={client?.employment_status} />
+                <InfoRow label="Status" value={client?.status} />
               </div>
 
-              {/* Other Details (Right) */}
+              {/* RIGHT CARD: Client Details */}
               <div style={{ flex: 1, paddingLeft: '2rem' }}>
                 <h4 style={sectionTitleStyle}>Client Details</h4>
-                <InfoRow label="Status" value={client?.status} />
-                <InfoRow label="Date of Birth" value={client?.date_of_birth} />
+                <InfoRow label="Client Type" value={client?.client_type} />
+                <InfoRow label="Date of Birth" value={formatDate(client?.date_of_birth)} />
                 <InfoRow label="Gender" value={client?.gender} />
                 <InfoRow label="Occupation" value={client?.occupation} />
+                <div style={dividerStyle}></div>
+                <InfoRow label="ID Type" value={client?.id_type} />
+                <InfoRow label="ID Number" value={client?.id_number} />
+                <div style={dividerStyle}></div>
+                <InfoRow label="Monthly Income" value={client?.monthly_income ? `$${formatMoney(client.monthly_income)}` : '-'} />
                 <InfoRow label="Credit Rating" value={client?.credit_rating} />
               </div>
 
@@ -237,3 +278,9 @@ const headerRowStyle = { background: '#f1f3f5', borderBottom: '2px solid #dee2e6
 const thStyle = { padding: '1rem', textAlign: 'left', fontWeight: 600, color: '#495057', whiteSpace: 'nowrap' };
 const rowStyle = { borderBottom: '1px solid #eee', cursor: 'pointer', transition: 'background 0.2s' };
 const tdStyle = { padding: '1rem', color: '#212529', verticalAlign: 'middle' };
+
+// New Styles for Contact Header
+const contactHeaderStyle = { padding: '0.5rem 2rem', background: '#f8f9fa', borderBottom: '1px solid #eee', display: 'flex', gap: '2rem', fontSize: '0.9rem', color: '#555' };
+const contactItemStyle = { display: 'flex', alignItems: 'center', gap: '0.5rem' };
+const linkStyle = { color: '#0176d3', textDecoration: 'none' };
+const dividerStyle = { height: '1px', background: '#eee', margin: '1rem 0' };

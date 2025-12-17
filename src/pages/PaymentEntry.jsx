@@ -61,15 +61,34 @@ export default function PaymentEntry() {
   useEffect(() => {
     if (selectedLoan) {
       async function loadDetails() {
-        const { data, error } = await supabase
+        // Fetch static loan details properties
+        const { data: loanData, error: loanError } = await supabase
           .from('loans')
-          .select('current_balance, principal_outstanding, interest_accrued, fees_outstanding')
+          .select('start_date, loan_number, annual_interest_rate')
           .eq('id', selectedLoan)
           .single();
-        if (error) {
-          console.error(error);
-        } else {
-          setLoanDetails(data);
+
+        // Fetch dynamic balance properties
+        const { data: balanceData, error: balanceError } = await supabase
+          .from('loan_balances')
+          .select('current_outstanding_balance, outstanding_principal, outstanding_interest, unpaid_fees')
+          .eq('loan_id', selectedLoan)
+          .maybeSingle();
+
+        if (loanData) {
+          const bal = balanceData || {
+            current_outstanding_balance: 0,
+            outstanding_principal: 0,
+            outstanding_interest: 0,
+            unpaid_fees: 0
+          };
+
+          setLoanDetails({
+            ...bal,
+            start_date: loanData.start_date,
+            loan_number: loanData.loan_number,
+            interest_rate: loanData.annual_interest_rate
+          });
         }
       }
       loadDetails();
@@ -85,12 +104,16 @@ export default function PaymentEntry() {
       const payment = parseFloat(form.amount);
       if (payment > 0) {
         let remaining = payment;
-        const fees = Math.min(remaining, loanDetails.fees_outstanding || 0);
+        const fees = Math.min(remaining, loanDetails.unpaid_fees || 0);
         remaining -= fees;
-        const interest = Math.min(remaining, loanDetails.interest_accrued || 0);
+        const interest = Math.min(remaining, loanDetails.outstanding_interest || 0);
         remaining -= interest;
-        const principal = Math.min(remaining, loanDetails.principal_outstanding || 0);
-        const newBalance = Math.max(0, loanDetails.current_balance - payment);
+        const principal = Math.min(remaining, loanDetails.outstanding_principal || 0);
+
+        // New balance calculation
+        const current = loanDetails.current_outstanding_balance || 0;
+        const newBalance = Math.max(0, current - payment);
+
         setAllocation({ fees, interest, principal, newBalance });
       } else {
         setAllocation(null);
@@ -113,6 +136,7 @@ export default function PaymentEntry() {
 
     const response = await addRepayment({
       loan_id: selectedLoan,
+      client_id: selectedClient, // <-- Passed client_id here
       date: form.date,
       amount: parseFloat(form.amount),
       reference: form.reference,
@@ -137,11 +161,6 @@ export default function PaymentEntry() {
 
   return (
     <div style={pageStyle}>
-      {message && (
-        <p style={{ color: message.includes('Error') ? 'red' : '#0176d3', marginBottom: '1rem' }}>
-          {message}
-        </p>
-      )}
       <h2 style={{ color: '#0176d3', marginBottom: '1.5rem' }}>Payment Entry</h2>
       <div style={layoutStyle}>
         <form onSubmit={handleSubmit} style={formStyle}>
@@ -205,16 +224,31 @@ export default function PaymentEntry() {
           <button type="submit" style={submitBtnStyle}>
             Record Payment
           </button>
+
+          {message && (
+            <div style={{
+              ...messageBoxStyle,
+              color: message.includes('Error') ? '#721c24' : '#155724',
+              backgroundColor: message.includes('Error') ? '#f8d7da' : '#d4edda',
+              borderColor: message.includes('Error') ? '#f5c6cb' : '#c3e6cb'
+            }}>
+              {message}
+            </div>
+          )}
         </form>
 
         <div style={sidebarStyle}>
           {loanDetails ? (
             <>
-              <h3 style={{ color: '#181818', marginBottom: '1rem' }}>Current Loan Balance</h3>
-              <p>Total Outstanding: ${loanDetails.current_balance?.toFixed(2)}</p>
-              <p>Principal: ${loanDetails.principal_outstanding?.toFixed(2)}</p>
-              <p>Interest: ${loanDetails.interest_accrued?.toFixed(2)}</p>
-              <p>Fees: ${loanDetails.fees_outstanding?.toFixed(2)}</p>
+              <h3 style={{ color: '#181818', marginBottom: '1rem' }}>Loan Details</h3>
+              <p><strong>{loanDetails.loan_number}</strong></p>
+              <p>Start Date: {loanDetails.start_date}</p>
+              <p>Interest Rate: {loanDetails.interest_rate}%</p>
+              <hr style={{ margin: '1rem 0', border: '0', borderTop: '1px solid #ddd' }} />
+              <p>Total Outstanding: ${loanDetails.current_outstanding_balance?.toFixed(2)}</p>
+              <p>Principal: ${loanDetails.outstanding_principal?.toFixed(2)}</p>
+              <p>Interest: ${loanDetails.outstanding_interest?.toFixed(2)}</p>
+              <p>Fees: ${loanDetails.unpaid_fees?.toFixed(2)}</p>
             </>
           ) : (
             <p style={{ color: '#706e6b', fontStyle: 'italic' }}>Select a loan to view balance.</p>
@@ -262,4 +296,12 @@ const submitBtnStyle = {
   cursor: 'pointer',
   fontWeight: '600',
   fontSize: '1rem',
+};
+const messageBoxStyle = {
+  marginTop: '1.5rem',
+  padding: '1rem',
+  borderRadius: '0.25rem',
+  textAlign: 'center',
+  fontWeight: '600',
+  border: '1px solid',
 };

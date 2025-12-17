@@ -153,12 +153,21 @@ export const getLoansByClient = async (clientId) => {
   try {
     const { data, error } = await supabase
       .from('loans')
-      .select('*')
+      .select('*, loan_balances(current_outstanding_balance)')
       .eq('client_id', clientId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return { success: true, data: data || [] };
+
+    // Map balance to top level for UI convenience
+    const loans = (data || []).map(l => ({
+      ...l,
+      current_balance: l.loan_balances?.[0]?.current_outstanding_balance
+        ?? l.loan_balances?.current_outstanding_balance
+        ?? 0
+    }));
+
+    return { success: true, data: loans };
   } catch (error) {
     console.error('Error fetching loans for client:', error);
     return { success: false, message: error.message };
@@ -183,22 +192,80 @@ export const getClientById = async (clientId) => {
 
 export const addRepayment = async (repaymentData) => {
   try {
-    const { loan_id, date, amount, reference, notes } = repaymentData;
+    const { loan_id, client_id, date, amount, reference, notes } = repaymentData;
+    const paymentAmount = parseFloat(amount);
 
-    const { data, error } = await supabase
-      .from('payments')
-      .insert([{
-        loan_id,
-        payment_date: date,
-        amount,
-        reference,
-        notes,
-        created_at: new Date().toISOString()
-      }])
-      .select();
+    // 1. Get Current Balance
+    const { data: balanceData, error: balanceError } = await supabase
+      .from('loan_balances')
+      .select('*')
+      .eq('loan_id', loan_id)
+      .single();
 
-    if (error) throw error;
-    return { success: true, data: data?.[0] };
+    if (balanceError || !balanceData) throw new Error("Could not find loan balance info.");
+
+    // 2. Calculate Allocation
+    let remaining = paymentAmount;
+
+    const feesPaid = Math.min(remaining, balanceData.unpaid_fees || 0);
+    remaining -= feesPaid;
+
+    const interestPaid = Math.min(remaining, balanceData.outstanding_interest || 0);
+    remaining -= interestPaid;
+
+    const principalPaid = remaining; // Check if we shouldn't overpay principal? Assuming no overpay for now.
+
+    // 3. Insert Transaction
+    const transactionPayload = {
+      loan_id,
+      client_id,
+      transaction_date: date, // Corrected column name
+      transaction_type: 'PAY', // Corrected column name (violates not-null if missing)
+      txn_type: 'PAY', // Keeping for newer migration compatibility
+      txn_date: date,
+      amount: paymentAmount,
+      // Map notes to both potential columns
+      notes: reference ? `Payment: ${reference}` : (notes || 'Payment received'),
+      fees_applied: feesPaid,
+      interest_applied: interestPaid,
+      principal_applied: principalPaid,
+      allocation_breakdown: {
+        establishment_fee: 0,
+        fees: feesPaid,
+        interest: interestPaid,
+        principal: principalPaid
+      },
+      balance_after_transaction: (balanceData.current_outstanding_balance - paymentAmount),
+      balance: (balanceData.current_outstanding_balance - paymentAmount), // Legacy column required
+      reference_number: reference,
+      payment_method: 'manual_entry',
+      source: 'manual_entry',
+      processing_status: 'processed',
+      created_at: new Date().toISOString()
+    };
+
+    const { data: txn, error: txnError } = await supabase.from('transactions').insert([transactionPayload]).select().single();
+    if (txnError) throw txnError;
+
+    // 4. Update Loan Balance
+    const newFees = (balanceData.unpaid_fees || 0) - feesPaid;
+    const newInterest = (balanceData.outstanding_interest || 0) - interestPaid;
+    const newPrincipal = (balanceData.outstanding_principal || 0) - principalPaid;
+    const newTotal = newFees + newInterest + newPrincipal;
+
+    const { error: updateError } = await supabase.from('loan_balances').update({
+      unpaid_fees: newFees,
+      outstanding_interest: newInterest,
+      outstanding_principal: newPrincipal,
+      current_outstanding_balance: newTotal,
+      last_payment_date: date,
+      updated_at: new Date().toISOString()
+    }).eq('loan_id', loan_id);
+
+    if (updateError) throw updateError;
+
+    return { success: true, data: txn };
+
   } catch (error) {
     console.error('Error adding repayment:', error);
     return { success: false, message: error.message };

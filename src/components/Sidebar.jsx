@@ -13,6 +13,7 @@ export default function Sidebar({ collapsed, setCollapsed }) {
     { key: '/dashboard', label: 'Dashboard', icon: '📊' },
     { key: '/clients', label: 'Clients', icon: '👥' },
     { key: '/loans', label: 'Loans', icon: '💰' },
+    { key: '/fees', label: 'Fees', icon: '🧾' },
     { key: '/payment-entry', label: 'Payment Entry', icon: '💳' },
     { key: '/repayments', label: 'Repayments', icon: '📝' },
     { key: '/reports', label: 'Reports', icon: '📈' },

@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
 import Loans from './pages/Loans';
 import PaymentEntry from './pages/PaymentEntry';
+import FeeManagementPage from './pages/FeeManagementPage';
 
 export default function App() {
   const [collapsed, setCollapsed] = useState(false);
@@ -28,6 +29,7 @@ export default function App() {
             <Route path="/clients" element={<Clients />} />
             <Route path="/loans" element={<Loans />} />
             <Route path="/payment-entry" element={<PaymentEntry />} />
+            <Route path="/fees" element={<FeeManagementPage />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>
