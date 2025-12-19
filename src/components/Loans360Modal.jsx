@@ -26,26 +26,10 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
         .select(`
           *,
           loan_products (name, interest_type),
-          clients (first_name, last_name, client_code),
-          loan_balances (
-             current_outstanding_balance,
-             outstanding_principal
-          )
+          clients (first_name, last_name, client_code)
         `)
         .eq('id', initialLoan.id)
         .single();
-
-      // Normalize balance data from relation if exists
-      if (loanData && loanData.loan_balances) {
-        // If it's an array (which it shouldn't be with single() but just in case of FK weirdness or no single modifier on relation)
-        // Actually we joined it. It might come as object or array depending on relation setup.
-        // Let's assume object if logic changes, but safeguard.
-        const bal = Array.isArray(loanData.loan_balances) ? loanData.loan_balances[0] : loanData.loan_balances;
-        if (bal) {
-          loanData.current_balance = bal.current_outstanding_balance;
-          loanData.outstanding_principal = bal.outstanding_principal;
-        }
-      }
 
       // 2. Fetch Repayment Schedule
       const { data: schedule } = await supabase
@@ -86,7 +70,7 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
     const headers = ['Due Date', 'Amount', 'Principal', 'Interest', 'Fees', 'Status'];
     const rows = installments.map(i => [
       formatDate(i.due_date),
-      i.scheduled_amount?.toFixed(2) || i.amount?.toFixed(2), // Handle possible column name diffs
+      i.scheduled_amount?.toFixed(2) || i.amount?.toFixed(2),
       i.principal_portion?.toFixed(2),
       i.interest_portion?.toFixed(2),
       i.fee_portion?.toFixed(2) || '0.00',
@@ -125,8 +109,13 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
   if (!initialLoan) return null;
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
-      <div style={modalStyle} onClick={e => e.stopPropagation()}>
+    <div style={overlayStyle} onMouseDown={(e) => {
+      // Only close if clicking directly on the overlay, not modal content
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    }}>
+      <div style={modalStyle} onMouseDown={(e) => e.stopPropagation()}>
 
         {/* Header */}
         <div style={headerStyle}>
@@ -329,4 +318,3 @@ const tableStyle = { width: '100%', borderCollapse: 'collapse', fontSize: '0.9re
 const tableHeaderRowStyle = { background: '#f8f9fa', borderBottom: '2px solid #e9ecef' };
 const thStyle = { padding: '0.8rem 1rem', textAlign: 'left', fontWeight: 600, color: '#495057', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.03em' };
 const tdStyle = { padding: '0.8rem 1rem', color: '#212529' };
-

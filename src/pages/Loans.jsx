@@ -5,7 +5,6 @@ import PageHeader from '../components/PageHeader';
 import Client360Modal from '../components/Client360Modal';
 import Loans360Modal from '../components/Loans360Modal';
 import NewLoanModal from '../components/NewLoanModal';
-import './Loans.css';
 
 export default function Loans() {
   const { loans, loading, error, refetch } = useLoans();
@@ -21,26 +20,16 @@ export default function Loans() {
   const [selectedLoan, setSelectedLoan] = useState(null);
   const [selectedLoanForEdit, setSelectedLoanForEdit] = useState(null);
 
-  const handleEditLoan = (loan) => {
-    setSelectedLoanForEdit(loan);
-    setShowNewLoan(true);
-  };
-
-  // Form state for new loan
-  const [formData, setFormData] = useState({
-    client_id: '',
-    product_id: '',
-    loan_amount: '',
-    establishment_fee: '',
-    start_date: new Date().toISOString().split('T')[0],
-    term: 'Monthly'
-  });
-
-  // Filters
+  // Filters & Sorting
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [sortBy, setSortBy] = useState('loan_number');
   const [sortOrder, setSortOrder] = useState('asc');
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Load products and clients on mount
   useEffect(() => {
@@ -48,9 +37,10 @@ export default function Loans() {
     fetchClients();
   }, []);
 
+  // Filter and sort when data changes
   useEffect(() => {
     filterAndSortLoans();
-  }, [loans, search, statusFilter, sortBy, sortOrder]);
+  }, [loans, search, statusFilter, sortBy, sortOrder, currentPage, pageSize]);
 
   const fetchProducts = async () => {
     try {
@@ -97,6 +87,11 @@ export default function Loans() {
       }
     }
     return false;
+  };
+
+  const handlePageSizeChange = (size) => {
+    setPageSize(size);
+    setCurrentPage(1);
   };
 
   const filterAndSortLoans = () => {
@@ -162,7 +157,12 @@ export default function Loans() {
       }
     });
 
-    setFilteredLoans(result);
+    // Set total count and paginate
+    setTotalCount(result.length);
+    const startIdx = (currentPage - 1) * pageSize;
+    const paginatedResult = result.slice(startIdx, startIdx + pageSize);
+
+    setFilteredLoans(paginatedResult);
   };
 
   const handleSort = (column) => {
@@ -174,12 +174,15 @@ export default function Loans() {
       setSortBy(column);
       setSortOrder('asc');
     }
+    setCurrentPage(1); // Reset to first page
   };
 
   const getSortIcon = (column) => {
     if (sortBy !== column) return ' ⇅';
     return sortOrder === 'asc' ? ' ↑' : ' ↓';
   };
+
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   const openClient = (clientId) => {
     setSelectedClientId(clientId);
@@ -191,50 +194,9 @@ export default function Loans() {
     setShowLoan360(true);
   };
 
-  const handleFormChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleCreateLoan = async () => {
-    if (!formData.client_id || !formData.product_id || !formData.loan_amount || !formData.start_date || !formData.term) {
-      alert('Please fill in all required fields');
-      return;
-    }
-
-    try {
-      const response = await supabase.functions.invoke('create-loan', {
-        body: {
-          client_id: formData.client_id,
-          product_id: formData.product_id,
-          loan_amount: parseFloat(formData.loan_amount),
-          establishment_fee: parseFloat(formData.establishment_fee) || 0,
-          start_date: formData.start_date,
-          term: formData.term,
-          status: 'active'
-        }
-      });
-
-      if (response.error) throw response.error;
-
-      alert('Loan created successfully!');
-      setShowNewLoan(false);
-      setFormData({
-        client_id: '',
-        product_id: '',
-        loan_amount: '',
-        establishment_fee: '',
-        start_date: new Date().toISOString().split('T')[0],
-        term: 'Monthly'
-      });
-      refetch();
-    } catch (err) {
-      console.error('Error creating loan:', err);
-      alert('Failed to create loan: ' + (err.message || JSON.stringify(err)));
-    }
+  const handleEditLoan = (loan) => {
+    setSelectedLoanForEdit(loan);
+    setShowNewLoan(true);
   };
 
   return (
@@ -245,7 +207,10 @@ export default function Loans() {
         actions={
           <button
             className="btn-primary"
-            onClick={() => setShowNewLoan(true)}
+            onClick={() => {
+              setSelectedLoanForEdit(null);
+              setShowNewLoan(true);
+            }}
           >
             + New Loan
           </button>
@@ -259,7 +224,10 @@ export default function Loans() {
             type="text"
             placeholder="Search by loan number, client name, company, or status..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
           />
         </div>
         <div className="loans-filters">
@@ -269,7 +237,10 @@ export default function Loans() {
               <button
                 key={s}
                 className={`filter-btn ${statusFilter === s ? 'active' : ''}`}
-                onClick={() => setStatusFilter(s)}
+                onClick={() => {
+                  setStatusFilter(s);
+                  setCurrentPage(1);
+                }}
               >
                 {s.charAt(0).toUpperCase() + s.slice(1)}
               </button>
@@ -279,6 +250,11 @@ export default function Loans() {
       </div>
 
       <div className="table-container">
+        <div className="table-stats">
+          Showing {filteredLoans.length} of {totalCount} loans
+          {totalCount > pageSize && ` (Page ${currentPage} of ${totalPages})`}
+        </div>
+
         <table className="loans-table">
           <thead>
             <tr>
@@ -353,15 +329,19 @@ export default function Loans() {
                   </td>
                   <td>{loan.start_date}</td>
                   <td>
-                    {loan.status?.toLowerCase() === 'active' && (
-                      <button
-                        className="btn-secondary"
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                        onClick={(e) => { e.stopPropagation(); handleEditLoan(loan); }}
-                      >
-                        Edit
-                      </button>
-                    )}
+                    <div className="action-cell">
+                      {loan.status?.toLowerCase() === 'active' && (
+                        <button
+                          className="btn-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditLoan(loan);
+                          }}
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
@@ -370,18 +350,73 @@ export default function Loans() {
         </table>
       </div>
 
+      {/* Pagination */}
+      {totalCount > 0 && (
+        <div className="pagination-controls">
+          <div className="page-size-selector">
+            <span>Show:</span>
+            {[20, 50, 100].map(size => (
+              <button
+                key={size}
+                className={`page-size-btn ${pageSize === size ? 'active' : ''}`}
+                onClick={() => handlePageSizeChange(size)}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+
+          <div className="pagination-nav">
+            <button
+              className="btn-pagination"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+            >
+              ← Previous
+            </button>
+
+            <div className="page-info">
+              Page {currentPage} of {totalPages}
+            </div>
+
+            <button
+              className="btn-pagination"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* New Loan Modal */}
       {showNewLoan && (
         <NewLoanModal
-          onClose={() => { setShowNewLoan(false); setSelectedLoanForEdit(null); }}
+          onClose={() => {
+            setShowNewLoan(false);
+            setSelectedLoanForEdit(null);
+          }}
           reloadLoans={refetch}
           initialLoan={selectedLoanForEdit}
           initialMode={selectedLoanForEdit ? 'consolidation' : 'new'}
         />
       )}
 
-      {showClient360 && <Client360Modal isOpen={showClient360} onClose={() => setShowClient360(false)} clientId={selectedClientId} />}
-      {showLoan360 && <Loans360Modal loan={selectedLoan} onClose={() => setShowLoan360(false)} />}
+      {showClient360 && (
+        <Client360Modal
+          isOpen={showClient360}
+          onClose={() => setShowClient360(false)}
+          clientId={selectedClientId}
+        />
+      )}
+
+      {showLoan360 && (
+        <Loans360Modal
+          loan={selectedLoan}
+          onClose={() => setShowLoan360(false)}
+        />
+      )}
     </div>
   );
 }

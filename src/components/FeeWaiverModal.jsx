@@ -1,135 +1,398 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseService';
 
-export default function FeeWaiverModal({ fee, onClose, onFeeWaived }) {
-    const [reason, setReason] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+export default function CreateLoanWaiverModal({ onClose, onWaiverCreated }) {
+  const [clients, setClients] = useState([]);
+  const [selectedClientId, setSelectedClientId] = useState('');
+  const [activeLoan, setActiveLoan] = useState(null);
+  const [noActiveLoan, setNoActiveLoan] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-    if (!fee) return null;
+  const [formData, setFormData] = useState({
+    waiverType: 'Partial Waiver',
+    reason: 'Customer Hardship',
+    principalToWaive: 0,
+    interestToWaive: 0,
+    feesToWaive: 0,
+  });
 
-    const handleConfirm = async () => {
-        if (!reason.trim()) {
-            setError("Waiver reason is required.");
-            return;
-        }
+  // Fetch all clients on mount
+  useEffect(() => {
+    fetchClients();
+  }, []);
 
-        setLoading(true);
-        setError(null);
+  const fetchClients = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, first_name, last_name')
+        .order('first_name');
 
-        try {
-            // 1. Get current user (Waived By)
-            const { data: { user } } = await supabase.auth.getUser();
-            const waivedBy = user?.email || 'system_user'; // Fallback if no auth context yet
+      if (error) throw error;
+      setClients(data || []);
+    } catch (err) {
+      console.error('Error fetching clients:', err);
+    }
+  };
 
-            // 2. Insert Audit Record
-            const { error: auditError } = await supabase
-                .from('fee_waiver_audit')
-                .insert({
-                    fee_application_id: fee.id,
-                    waived_amount: fee.amount,
-                    waive_reason: reason,
-                    waived_by: waivedBy,
-                    waived_at: new Date().toISOString()
-                });
+  // When client is selected, fetch their active loan
+  useEffect(() => {
+    if (selectedClientId) {
+      fetchActiveLoan(selectedClientId);
+    } else {
+      setActiveLoan(null);
+      setNoActiveLoan(false);
+    }
+  }, [selectedClientId]);
 
-            if (auditError) throw auditError;
+  const fetchActiveLoan = async (clientId) => {
+    try {
+      const { data, error } = await supabase
+        .from('loans')
+        .select('id, loan_number, current_outstanding_balance')
+        .eq('client_id', clientId)
+        .eq('status', 'active')
+        .single(); // Assuming only one active loan per client
 
-            // 3. Update Fee Application
-            const { error: updateError } = await supabase
-                .from('fee_applications')
-                .update({
-                    status: 'waived',
-                    // waived_by: waivedBy, // If column exists in fee_applications? Handoff implies only audit trail has it, or fee_applications might have it. 
-                    // Handoff V3 Requirement: "UPDATE fee_applications (status='waived', waived_by, waive_reason)"
-                    // I'll assume columns exist. If not, audit table is the source of truth.
-                    // Let's safe bet: update status. If error on unknown column, we might need to adjust.
-                    // Given the schema isn't fully visible, I'll update status first. 
-                    // Wait, Handoff explicitly says "UPDATE fee_applications (status='waived', waived_by, waive_reason)". Trust the doc.
-                })
-                .eq('id', fee.id);
+      if (error && error.code === 'PGRST116') {
+        // No rows returned
+        setActiveLoan(null);
+        setNoActiveLoan(true);
+      } else if (error) {
+        throw error;
+      } else {
+        setActiveLoan(data);
+        setNoActiveLoan(false);
+      }
+    } catch (err) {
+      console.error('Error fetching active loan:', err);
+      setActiveLoan(null);
+      setNoActiveLoan(true);
+    }
+  };
 
-            // Check if update failed due to column missing? 
-            // Better to fetch current user and such. 
-            // To be safe against schema mismatch, I'll try just status first if I'm unsure, but doc says to update them.
-            // I'll execute what doc says.
+  const handleSubmit = async () => {
+    if (!selectedClientId || !activeLoan) {
+      setError('Please select a client with an active loan');
+      return;
+    }
 
-            // Re-execute update with fields:
-            const { error: finalUpdateError } = await supabase.from('fee_applications').update({
-                status: 'waived',
-                waived_by: waivedBy,
-                waive_reason: reason
-            }).eq('id', fee.id);
+    if (!formData.reason.trim()) {
+      setError('Reason for waiver is required');
+      return;
+    }
 
-            if (finalUpdateError) throw finalUpdateError;
+    setLoading(true);
+    setError(null);
 
-            // 4. Update Balance?
-            // "Fee tracking via fee_applications ONLY". 
-            // Waiving a fee means it's no longer 'pending' or 'owing'.
-            // Does it affect `loan_balances`?
-            // If `unpaid_fees` tracked the sum of pending fees, then yes we should decrease it.
-            // But V4 says: "Initialize unpaid_fees = 0... Payment allocation reads from fee_applications".
-            // So `loan_balances.unpaid_fees` might NOT be used or is 0.
-            // If it IS used, we would decrease it. 
-            // Safest: Check if `unpaid_fees` > 0 on balance, if yes, deduct. 
-            // BUT strict V4: "Use fee_applications ONLY".
-            // So we do NOT touch loan_balances.
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const approvedBy = user?.email || 'system_user';
 
-            onFeeWaived();
-            onClose();
+      // Create waiver record
+      const { error: waiverError } = await supabase
+        .from('loan_waivers')
+        .insert({
+          loan_id: activeLoan.id,
+          client_id: selectedClientId,
+          waiver_type: formData.waiverType,
+          principal_waived: parseFloat(formData.principalToWaive) || 0,
+          interest_waived: parseFloat(formData.interestToWaive) || 0,
+          fees_waived: parseFloat(formData.feesToWaive) || 0,
+          reason: formData.reason,
+          status: 'pending',
+          approved_by: approvedBy,
+          approved_at: new Date().toISOString(),
+        });
 
-        } catch (err) {
-            console.error("Waiver failed:", err);
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
+      if (waiverError) throw waiverError;
 
-    return (
-        <div style={overlayStyle}>
-            <div style={modalStyle}>
-                <h3 style={titleStyle}>Waive Fee</h3>
+      alert('Loan waiver created successfully!');
+      onWaiverCreated?.();
+      onClose();
+    } catch (err) {
+      console.error('Error creating waiver:', err);
+      setError(err.message || 'Failed to create waiver');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-                <div style={detailsStyle}>
-                    <p><strong>Fee Type:</strong> {fee.fee_type}</p>
-                    <p><strong>Amount:</strong> ${fee.amount?.toFixed(2)}</p>
-                    <p><strong>Date Created:</strong> {new Date(fee.created_at).toLocaleDateString()}</p>
-                </div>
+  const styles = {
+    overlay: {
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 2000,
+    },
+    modal: {
+      background: '#fff',
+      borderRadius: '8px',
+      width: '95%',
+      maxWidth: '500px',
+      padding: '2rem',
+      boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+    },
+    header: {
+      marginTop: 0,
+      marginBottom: '1.5rem',
+      color: '#0176d3',
+      fontSize: '1.3rem',
+      fontWeight: 600,
+    },
+    formGroup: {
+      marginBottom: '1rem',
+    },
+    label: {
+      display: 'block',
+      marginBottom: '0.5rem',
+      fontWeight: 600,
+      color: '#181818',
+      fontSize: '0.9rem',
+    },
+    required: {
+      color: 'red',
+      marginLeft: '0.25rem',
+    },
+    input: {
+      width: '100%',
+      padding: '0.7rem',
+      border: '1px solid #ddd',
+      borderRadius: '4px',
+      fontSize: '0.9rem',
+      fontFamily: 'inherit',
+      boxSizing: 'border-box',
+    },
+    select: {
+      width: '100%',
+      padding: '0.7rem',
+      border: '1px solid #ddd',
+      borderRadius: '4px',
+      fontSize: '0.9rem',
+      fontFamily: 'inherit',
+      boxSizing: 'border-box',
+      backgroundColor: '#fff',
+      cursor: 'pointer',
+    },
+    infoBox: {
+      background: '#f0f7ff',
+      padding: '1rem',
+      borderRadius: '4px',
+      border: '1px solid #0176d3',
+      marginBottom: '1rem',
+      fontSize: '0.9rem',
+    },
+    errorMessage: {
+      background: '#fdeded',
+      color: '#5f2120',
+      padding: '0.75rem',
+      borderRadius: '4px',
+      marginBottom: '1rem',
+      fontSize: '0.9rem',
+      border: '1px solid #f5c6cb',
+    },
+    noActiveLoanMessage: {
+      background: '#fff3cd',
+      color: '#856404',
+      padding: '0.75rem',
+      borderRadius: '4px',
+      marginBottom: '1rem',
+      fontSize: '0.9rem',
+      border: '1px solid #ffeaa7',
+    },
+    amountsRow: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr 1fr',
+      gap: '1rem',
+      marginBottom: '1rem',
+    },
+    amountInput: {
+      width: '100%',
+      padding: '0.7rem',
+      border: '1px solid #ddd',
+      borderRadius: '4px',
+      fontSize: '0.9rem',
+      fontFamily: 'inherit',
+      boxSizing: 'border-box',
+    },
+    amountLabel: {
+      display: 'block',
+      marginBottom: '0.5rem',
+      fontWeight: 500,
+      color: '#666',
+      fontSize: '0.8rem',
+    },
+    footer: {
+      display: 'flex',
+      gap: '1rem',
+      justifyContent: 'flex-end',
+      marginTop: '1.5rem',
+      paddingTop: '1rem',
+      borderTop: '1px solid #eee',
+    },
+    cancelBtn: {
+      padding: '0.75rem 1.5rem',
+      background: '#e9ecef',
+      border: 'none',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontWeight: 500,
+      fontSize: '0.9rem',
+    },
+    submitBtn: {
+      padding: '0.75rem 1.5rem',
+      background: '#28a745',
+      color: '#fff',
+      border: 'none',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontWeight: 600,
+      fontSize: '0.9rem',
+    },
+  };
 
-                <div style={formGroupStyle}>
-                    <label style={labelStyle}>Reason for Waiver (Required):</label>
-                    <textarea
-                        style={textareaStyle}
-                        value={reason}
-                        onChange={e => setReason(e.target.value)}
-                        placeholder="e.g. Customer hardship, Administrative error..."
-                    />
-                </div>
+  return (
+    <div style={styles.overlay} onClick={onClose}>
+      <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <h2 style={styles.header}>Create Loan Waiver</h2>
 
-                {error && <div style={errorStyle}>{error}</div>}
+        {error && <div style={styles.errorMessage}>{error}</div>}
 
-                <div style={actionsStyle}>
-                    <button onClick={onClose} style={cancelBtnStyle} disabled={loading}>Cancel</button>
-                    <button onClick={handleConfirm} style={confirmBtnStyle} disabled={loading}>
-                        {loading ? 'Processing...' : 'Confirm Waiver'}
-                    </button>
-                </div>
-            </div>
+        {/* Client Select */}
+        <div style={styles.formGroup}>
+          <label style={styles.label}>
+            Select Client <span style={styles.required}>*</span>
+          </label>
+          <select
+            style={styles.select}
+            value={selectedClientId}
+            onChange={(e) => setSelectedClientId(e.target.value)}
+            disabled={loading}
+          >
+            <option value="">Choose a client...</option>
+            {clients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.first_name} {client.last_name}
+              </option>
+            ))}
+          </select>
         </div>
-    );
-}
 
-// Styles
-const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1100 };
-const modalStyle = { background: '#fff', padding: '2rem', borderRadius: '8px', width: '400px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' };
-const titleStyle = { marginTop: 0, color: '#d32f2f' };
-const detailsStyle = { background: '#f8f9fa', padding: '1rem', borderRadius: '4px', marginBottom: '1rem', fontSize: '0.9rem' };
-const formGroupStyle = { marginBottom: '1rem' };
-const labelStyle = { display: 'block', marginBottom: '0.5rem', fontWeight: 500 };
-const textareaStyle = { width: '100%', height: '80px', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da', fontFamily: 'inherit' };
-const actionsStyle = { display: 'flex', justifyContent: 'flex-end', gap: '1rem' };
-const cancelBtnStyle = { padding: '0.5rem 1rem', background: '#e9ecef', border: 'none', borderRadius: '4px', cursor: 'pointer' };
-const confirmBtnStyle = { padding: '0.5rem 1rem', background: '#d32f2f', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' };
-const errorStyle = { color: '#d32f2f', marginBottom: '1rem', fontSize: '0.9rem' };
+        {/* Active Loan Display */}
+        {selectedClientId && (
+          <>
+            {noActiveLoan ? (
+              <div style={styles.noActiveLoanMessage}>
+                ⚠️ No active loans for this client
+              </div>
+            ) : activeLoan ? (
+              <div style={styles.infoBox}>
+                <strong>Active Loan:</strong> {activeLoan.loan_number} - ${activeLoan.current_outstanding_balance?.toFixed(2)}
+              </div>
+            ) : null}
+          </>
+        )}
+
+        {/* Only show form if there's an active loan */}
+        {activeLoan && (
+          <>
+            {/* Waiver Type */}
+            <div style={styles.formGroup}>
+              <label style={styles.label}>
+                Waiver Type <span style={styles.required}>*</span>
+              </label>
+              <select
+                style={styles.select}
+                value={formData.waiverType}
+                onChange={(e) => setFormData({ ...formData, waiverType: e.target.value })}
+                disabled={loading}
+              >
+                <option value="Partial Waiver">Partial Waiver</option>
+                <option value="Full Waiver">Full Waiver</option>
+                <option value="Adjustment">Adjustment</option>
+              </select>
+            </div>
+
+            {/* Reason */}
+            <div style={styles.formGroup}>
+              <label style={styles.label}>
+                Reason for Waiver <span style={styles.required}>*</span>
+              </label>
+              <select
+                style={styles.select}
+                value={formData.reason}
+                onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                disabled={loading}
+              >
+                <option value="Customer Hardship">Customer Hardship</option>
+                <option value="Administrative Error">Administrative Error</option>
+                <option value="System Correction">System Correction</option>
+                <option value="Special Approval">Special Approval</option>
+              </select>
+            </div>
+
+            {/* Amounts to Waive */}
+            <div style={styles.formGroup}>
+              <div style={styles.amountsRow}>
+                <div>
+                  <label style={styles.amountLabel}>Principal to Waive</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.principalToWaive}
+                    onChange={(e) => setFormData({ ...formData, principalToWaive: e.target.value })}
+                    style={styles.amountInput}
+                    disabled={loading}
+                  />
+                </div>
+                <div>
+                  <label style={styles.amountLabel}>Interest to Waive</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.interestToWaive}
+                    onChange={(e) => setFormData({ ...formData, interestToWaive: e.target.value })}
+                    style={styles.amountInput}
+                    disabled={loading}
+                  />
+                </div>
+                <div>
+                  <label style={styles.amountLabel}>Fees to Waive</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.feesToWaive}
+                    onChange={(e) => setFormData({ ...formData, feesToWaive: e.target.value })}
+                    style={styles.amountInput}
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Footer */}
+        <div style={styles.footer}>
+          <button onClick={onClose} style={styles.cancelBtn} disabled={loading}>
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            style={styles.submitBtn}
+            disabled={loading || !activeLoan}
+          >
+            {loading ? 'Creating...' : 'Create Waiver'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

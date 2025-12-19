@@ -64,11 +64,22 @@ export default function Client360Modal({ isOpen, onClose, clientId }) {
     setLoading(false);
   };
 
+  const handleSaveClient = (updatedClient) => {
+    setClient(updatedClient);
+    setShowEdit(false);
+    fetchClient(); // Refresh client data
+  };
+
   if (!isOpen) return null;
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
-      <div style={modalStyle} onClick={e => e.stopPropagation()}>
+    <div style={overlayStyle} onMouseDown={(e) => {
+      // Only close if clicking directly on the dark overlay, not modal content
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    }}>
+      <div style={modalStyle} onMouseDown={(e) => e.stopPropagation()}>
 
         {/* Header Actions */}
         <div style={headerActionsStyle}>
@@ -127,7 +138,7 @@ export default function Client360Modal({ isOpen, onClose, clientId }) {
                 <InfoRow label="Address" value={client?.address} />
                 <InfoRow label="City" value={client?.city} />
                 <InfoRow label="Region" value={client?.region} />
-                <InfoRow label="Postcode" value={client?.postal_code} />
+                <InfoRow label="Postcode" value={client?.postcode} />
                 <div style={dividerStyle}></div>
                 <InfoRow label="Employment Status" value={client?.employment_status} />
                 <InfoRow label="Status" value={client?.status} />
@@ -174,15 +185,15 @@ export default function Client360Modal({ isOpen, onClose, clientId }) {
                     {loans.map(loan => (
                       <tr key={loan.id} onClick={() => { setSelectedLoan(loan); setShowLoan(true); }} style={rowStyle}>
                         <td style={tdStyle}>{loan.loan_number}</td>
-                        <td style={tdStyle}>{loan.loan_type || '-'}</td>
-                        <td style={tdStyle}>{loan.source || '-'}</td>
+                        <td style={tdStyle}>{loan.loan_type || loan.type || '-'}</td>
+                        <td style={tdStyle}>{loan.source || loan.loan_source || '-'}</td>
                         <td style={tdStyle}>{formatDate(loan.start_date || loan.created_at)}</td>
-                        <td style={tdStyle}>{formatDate(loan.end_date)}</td>
-                        <td style={{ ...tdStyle, fontWeight: 'bold' }}>${formatMoney(loan.current_balance)}</td>
-                        <td style={tdStyle}>${formatMoney(loan.principal_outstanding)}</td>
+                        <td style={tdStyle}>{formatDate(loan.end_date || loan.maturity_date)}</td>
+                        <td style={{ ...tdStyle, fontWeight: 'bold' }}>${formatMoney(loan.current_balance || loan.balance)}</td>
+                        <td style={tdStyle}>${formatMoney(loan.principal_outstanding || loan.outstanding_principal)}</td>
                         <td style={{ ...tdStyle, textAlign: 'center' }}>{loan.stats?.totalPaymentsMade || 0}</td>
                         <td style={{ ...tdStyle, color: (loan.stats?.overdueAmount > 0) ? '#d32f2f' : 'inherit', fontWeight: (loan.stats?.overdueAmount > 0) ? 'bold' : 'normal' }}>
-                          ${formatMoney(loan.stats?.overdueAmount)}
+                          ${formatMoney(loan.stats?.overdueAmount || 0)}
                         </td>
                         <td style={tdStyle}>
                           {loan.nextRepayment ? (
@@ -207,7 +218,7 @@ export default function Client360Modal({ isOpen, onClose, clientId }) {
       </div>
 
       {showLoan && <Loans360Modal loan={selectedLoan} onClose={() => setShowLoan(false)} />}
-      {showEdit && <EditClientModal client={client} onClose={() => setShowEdit(false)} onSave={setClient} />}
+      {showEdit && <EditClientModal client={client} onClose={() => setShowEdit(false)} onSave={handleSaveClient} />}
     </div>
   );
 }

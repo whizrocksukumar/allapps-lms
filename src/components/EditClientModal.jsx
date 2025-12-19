@@ -15,7 +15,7 @@ export default function EditClientModal({ client, onClose, onSave }) {
     address: "",
     city: "",
     region: "",
-    postal_code: "",
+    postcode: "",
     country: "NZ",
     id_type: "",
     id_number: "",
@@ -27,46 +27,115 @@ export default function EditClientModal({ client, onClose, onSave }) {
     notes: ""
   });
 
+  const [regions, setRegions] = useState([]);
+  const [cities, setCities] = useState([]);
+  const [regionCode, setRegionCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Load regions on mount
+  useEffect(() => {
+    const loadRegions = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("regions")
+          .select("region_code, region_name")
+          .order("region_name");
+
+        if (error) throw error;
+        setRegions(data || []);
+      } catch (err) {
+        console.error("Error loading regions:", err);
+      }
+    };
+
+    loadRegions();
+  }, []);
+
+  // Load cities when regionCode changes
+  useEffect(() => {
+    if (!regionCode) {
+      setCities([]);
+      return;
+    }
+
+    const loadCities = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("cities")
+          .select("city_name")
+          .eq("region_code", regionCode)
+          .order("city_name");
+
+        if (error) throw error;
+        setCities(data || []);
+      } catch (err) {
+        console.error("Error loading cities:", err);
+      }
+    };
+
+    loadCities();
+  }, [regionCode]);
+
   // Initialize form with client data
   useEffect(() => {
-    if (client) {
-      setForm({
-        id: client.id,
-        first_name: client.first_name || "",
-        last_name: client.last_name || "",
-        email: client.email || "",
-        client_type: client.client_type || "Individual",
-        company_name: client.company_name || "",
-        mobile_phone: client.mobile_phone || client.phone || "", // Handle both phone fields
-        work_phone: client.work_phone || "",
-        home_phone: client.home_phone || "",
-        address: client.address || "",
-        city: client.city || "",
-        region: client.region || "",
-        postal_code: client.postal_code || "",
-        country: client.country || "NZ",
-        id_type: client.id_type || "",
-        id_number: client.id_number || "",
-        employment_status: client.employment_status || "",
-        monthly_income: client.monthly_income || "",
-        occupation: client.occupation || "",
-        date_of_birth: client.date_of_birth || "",
-        gender: client.gender || "",
-        notes: client.notes || ""
-      });
+    if (!client || regions.length === 0) return;
+
+    setForm({
+      id: client.id,
+      first_name: client.first_name || "",
+      last_name: client.last_name || "",
+      email: client.email || "",
+      client_type: client.client_type || "Individual",
+      company_name: client.company_name || "",
+      mobile_phone: client.mobile_phone || client.phone || "",
+      work_phone: client.work_phone || "",
+      home_phone: client.home_phone || "",
+      address: client.address || "",
+      city: client.city || "",
+      region: client.region || "",
+      postcode: client.postcode || "",
+      country: client.country || "NZ",
+      id_type: client.id_type || "",
+      id_number: client.id_number || "",
+      employment_status: client.employment_status || "",
+      monthly_income: client.monthly_income || "",
+      occupation: client.occupation || "",
+      date_of_birth: client.date_of_birth || "",
+      gender: client.gender || "",
+      notes: client.notes || ""
+    });
+
+    // Find and set region code from region name
+    if (client.region) {
+      const foundRegion = regions.find(r => r.region_name === client.region);
+      if (foundRegion) {
+        setRegionCode(foundRegion.region_code);
+      }
     }
-  }, [client]);
+  }, [client, regions]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleRegionChange = (e) => {
+    const selectedCode = e.target.value;
+    setRegionCode(selectedCode);
+    
+    // Update form with region name
+    const selectedRegion = regions.find(r => r.region_code === selectedCode);
+    setForm(prev => ({ 
+      ...prev, 
+      region: selectedRegion?.region_name || "",
+      city: "" // Reset city when region changes
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    e.stopPropagation();
     setLoading(true);
     setError(null);
 
@@ -76,28 +145,22 @@ export default function EditClientModal({ client, onClose, onSave }) {
       setLoading(false);
       return;
     }
-    if (form.client_type === 'Business' && !form.company_name) {
-      setError("Company Name is required for Business clients.");
-      setLoading(false);
-      return;
-    }
 
     try {
-      // Map form to DB columns
       const dbPayload = {
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
         email: form.email.trim(),
         client_type: form.client_type,
-        company_name: form.client_type === 'Business' ? form.company_name : null,
-        phone: form.mobile_phone, // Primary phone mapping
+        company_name: form.company_name || null,
+        phone: form.mobile_phone,
         mobile_phone: form.mobile_phone,
         work_phone: form.work_phone,
         home_phone: form.home_phone,
         address: form.address,
         city: form.city,
         region: form.region,
-        postal_code: form.postal_code,
+        postcode: form.postcode,
         country: form.country,
         id_type: form.id_type || null,
         id_number: form.id_type ? form.id_number : null,
@@ -105,8 +168,7 @@ export default function EditClientModal({ client, onClose, onSave }) {
         occupation: ['employed', 'self_employed'].includes(form.employment_status) ? form.occupation : null,
         monthly_income: form.employment_status ? (parseFloat(form.monthly_income) || null) : null,
         date_of_birth: form.date_of_birth || null,
-        gender: form.gender || null,
-        notes: form.notes || null
+        gender: form.gender || null
       };
 
       const { error: updateError } = await supabase
@@ -117,12 +179,16 @@ export default function EditClientModal({ client, onClose, onSave }) {
       if (updateError) throw updateError;
 
       alert("Client updated successfully!");
-      if (onSave) onSave(form);
+      
+      if (onSave) {
+        onSave({ ...dbPayload, id: form.id });
+      }
+      
       onClose();
 
     } catch (err) {
       console.error("Error updating client:", err);
-      setError(err.message);
+      setError(err.message || "Failed to update client");
     } finally {
       setLoading(false);
     }
@@ -131,8 +197,12 @@ export default function EditClientModal({ client, onClose, onSave }) {
   if (!client) return null;
 
   return (
-    <div style={modalOverlay} onClick={onClose}>
-      <div style={modalContent} onClick={(e) => e.stopPropagation()}>
+    <div style={modalOverlay} onMouseDown={(e) => {
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    }}>
+      <div style={modalContent} onMouseDown={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <h2 style={{ margin: 0, color: '#0176d3' }}>Edit Client</h2>
           <button onClick={onClose} style={closeXStyle}>×</button>
@@ -168,8 +238,8 @@ export default function EditClientModal({ client, onClose, onSave }) {
             </div>
             {form.client_type === 'Business' && (
               <div style={{ marginTop: '0.75rem' }}>
-                <label style={labelStyle}>Company Name *</label>
-                <input name="company_name" value={form.company_name} onChange={handleChange} style={{ ...inputStyle, width: '100%' }} required />
+                <label style={labelStyle}>Company Name</label>
+                <input name="company_name" value={form.company_name} onChange={handleChange} style={{ ...inputStyle, width: '100%' }} />
               </div>
             )}
           </div>
@@ -197,18 +267,43 @@ export default function EditClientModal({ client, onClose, onSave }) {
             </div>
             <div style={rowStyle}>
               <div style={{ flex: 1 }}>
-                <label style={labelStyle}>City</label>
-                <input name="city" value={form.city} onChange={handleChange} style={inputStyle} />
+                <label style={labelStyle}>Region</label>
+                <select 
+                  name="region" 
+                  value={regionCode} 
+                  onChange={handleRegionChange} 
+                  style={inputStyle}
+                >
+                  <option value="">Select Region...</option>
+                  {regions.map(r => (
+                    <option key={r.region_code} value={r.region_code}>
+                      {r.region_name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Region</label>
-                <input name="region" value={form.region} onChange={handleChange} style={inputStyle} />
+                <label style={labelStyle}>City</label>
+                <select 
+                  name="city" 
+                  value={form.city} 
+                  onChange={handleChange} 
+                  style={inputStyle}
+                  disabled={!regionCode}
+                >
+                  <option value="">Select City...</option>
+                  {cities.map(c => (
+                    <option key={c.city_name} value={c.city_name}>
+                      {c.city_name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             <div style={rowStyle}>
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Postcode</label>
-                <input name="postal_code" value={form.postal_code} onChange={handleChange} style={inputStyle} />
+                <input name="postcode" value={form.postcode} onChange={handleChange} style={inputStyle} />
               </div>
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Country</label>

@@ -1,48 +1,13 @@
-// src/services/supabaseService.js (updated)
+// src/services/supabaseService.js
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(supabaseUrl, supabaseKey);
 
-export const getLoansWithClientNames = async () => {
-  try {
-    const { data, error } = await supabase
-      .from('loans')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    if (data && data.length > 0) {
-      const clientIds = [...new Set(data.map(l => l.client_id))];
-      const { data: clients, error: clientError } = await supabase
-        .from('clients')
-        .select('id, client_code, first_name, last_name')
-        .in('id', clientIds);
-
-      if (!clientError && clients) {
-        const clientMap = {};
-        clients.forEach(c => {
-          clientMap[c.id] = c;
-        });
-
-        return data.map(loan => ({
-          ...loan,
-          client_name: `${clientMap[loan.client_id]?.first_name || ''} ${clientMap[loan.client_id]?.last_name || ''}`.trim() || 'Unknown',
-          client_code: clientMap[loan.client_id]?.client_code || '',
-        }));
-      }
-    }
-
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching loans:', error);
-    return [];
-  }
-};
-
-export { supabase };
+// ============================================================================
+// CLIENTS
+// ============================================================================
 
 export const getClients = async () => {
   try {
@@ -56,6 +21,22 @@ export const getClients = async () => {
   } catch (error) {
     console.error('Error fetching clients:', error);
     return [];
+  }
+};
+
+export const getClientById = async (clientId) => {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', clientId)
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error fetching client:', error);
+    return null;
   }
 };
 
@@ -105,6 +86,71 @@ export const deleteClient = async (id) => {
   }
 };
 
+// ============================================================================
+// LOANS
+// ============================================================================
+
+export const getLoansWithClientNames = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('loans')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      const clientIds = [...new Set(data.map(l => l.client_id))];
+      const { data: clients, error: clientError } = await supabase
+        .from('clients')
+        .select('id, client_code, first_name, last_name')
+        .in('id', clientIds);
+
+      if (!clientError && clients) {
+        const clientMap = {};
+        clients.forEach(c => {
+          clientMap[c.id] = c;
+        });
+
+        return data.map(loan => ({
+          ...loan,
+          client_name: `${clientMap[loan.client_id]?.first_name || ''} ${clientMap[loan.client_id]?.last_name || ''}`.trim() || 'Unknown',
+          client_code: clientMap[loan.client_id]?.client_code || '',
+        }));
+      }
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching loans:', error);
+    return [];
+  }
+};
+
+export const getLoansByClient = async (clientId) => {
+  try {
+    const { data, error } = await supabase
+      .from('loans')
+      .select('*, loan_balances(current_outstanding_balance)')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const loans = (data || []).map(l => ({
+      ...l,
+      current_balance: l.loan_balances?.[0]?.current_outstanding_balance
+        ?? l.loan_balances?.current_outstanding_balance
+        ?? 0
+    }));
+
+    return { success: true, data: loans };
+  } catch (error) {
+    console.error('Error fetching loans for client:', error);
+    return { success: false, message: error.message };
+  }
+};
+
 export const addLoan = async (loanData) => {
   try {
     const { data, error } = await supabase
@@ -149,46 +195,9 @@ export const generateLoanSchedule = async (loanId, principal, rate, term) => {
   }
 };
 
-export const getLoansByClient = async (clientId) => {
-  try {
-    const { data, error } = await supabase
-      .from('loans')
-      .select('*, loan_balances(current_outstanding_balance)')
-      .eq('client_id', clientId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    // Map balance to top level for UI convenience
-    const loans = (data || []).map(l => ({
-      ...l,
-      current_balance: l.loan_balances?.[0]?.current_outstanding_balance
-        ?? l.loan_balances?.current_outstanding_balance
-        ?? 0
-    }));
-
-    return { success: true, data: loans };
-  } catch (error) {
-    console.error('Error fetching loans for client:', error);
-    return { success: false, message: error.message };
-  }
-};
-
-export const getClientById = async (clientId) => {
-  try {
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('id', clientId)
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error fetching client:', error);
-    return null;
-  }
-};
+// ============================================================================
+// REPAYMENTS & PAYMENTS
+// ============================================================================
 
 export const addRepayment = async (repaymentData) => {
   try {
@@ -213,18 +222,17 @@ export const addRepayment = async (repaymentData) => {
     const interestPaid = Math.min(remaining, balanceData.outstanding_interest || 0);
     remaining -= interestPaid;
 
-    const principalPaid = remaining; // Check if we shouldn't overpay principal? Assuming no overpay for now.
+    const principalPaid = remaining;
 
     // 3. Insert Transaction
     const transactionPayload = {
       loan_id,
       client_id,
-      transaction_date: date, // Corrected column name
-      transaction_type: 'PAY', // Corrected column name (violates not-null if missing)
-      txn_type: 'PAY', // Keeping for newer migration compatibility
+      transaction_date: date,
+      transaction_type: 'PAY',
+      txn_type: 'PAY',
       txn_date: date,
       amount: paymentAmount,
-      // Map notes to both potential columns
       notes: reference ? `Payment: ${reference}` : (notes || 'Payment received'),
       fees_applied: feesPaid,
       interest_applied: interestPaid,
@@ -236,7 +244,7 @@ export const addRepayment = async (repaymentData) => {
         principal: principalPaid
       },
       balance_after_transaction: (balanceData.current_outstanding_balance - paymentAmount),
-      balance: (balanceData.current_outstanding_balance - paymentAmount), // Legacy column required
+      balance: (balanceData.current_outstanding_balance - paymentAmount),
       reference_number: reference,
       payment_method: 'manual_entry',
       source: 'manual_entry',
@@ -244,7 +252,12 @@ export const addRepayment = async (repaymentData) => {
       created_at: new Date().toISOString()
     };
 
-    const { data: txn, error: txnError } = await supabase.from('transactions').insert([transactionPayload]).select().single();
+    const { data: txn, error: txnError } = await supabase
+      .from('transactions')
+      .insert([transactionPayload])
+      .select()
+      .single();
+
     if (txnError) throw txnError;
 
     // 4. Update Loan Balance
@@ -253,14 +266,17 @@ export const addRepayment = async (repaymentData) => {
     const newPrincipal = (balanceData.outstanding_principal || 0) - principalPaid;
     const newTotal = newFees + newInterest + newPrincipal;
 
-    const { error: updateError } = await supabase.from('loan_balances').update({
-      unpaid_fees: newFees,
-      outstanding_interest: newInterest,
-      outstanding_principal: newPrincipal,
-      current_outstanding_balance: newTotal,
-      last_payment_date: date,
-      updated_at: new Date().toISOString()
-    }).eq('loan_id', loan_id);
+    const { error: updateError } = await supabase
+      .from('loan_balances')
+      .update({
+        unpaid_fees: newFees,
+        outstanding_interest: newInterest,
+        outstanding_principal: newPrincipal,
+        current_outstanding_balance: newTotal,
+        last_payment_date: date,
+        updated_at: new Date().toISOString()
+      })
+      .eq('loan_id', loan_id);
 
     if (updateError) throw updateError;
 
@@ -348,4 +364,80 @@ export const getLoanStatistics = async (loanId) => {
     console.error('Error fetching loan statistics:', error);
     return { data: { totalPaymentsMade: 0, overdueAmount: 0 } };
   }
+};
+
+// ============================================================================
+// LOAN WAIVERS (Edge Functions)
+// ============================================================================
+
+export const createLoanWaiver = async (waiverData) => {
+  const response = await fetch(
+    `${supabaseUrl}/functions/v1/create-loan-waiver`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(waiverData),
+    }
+  );
+  return response.json();
+};
+
+export const approveLoanWaiver = async (waiverData) => {
+  const response = await fetch(
+    `${supabaseUrl}/functions/v1/approve-loan-waiver`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(waiverData),
+    }
+  );
+  return response.json();
+};
+
+export const applyLoanWaiver = async (waiverData) => {
+  const response = await fetch(
+    `${supabaseUrl}/functions/v1/apply-loan-waiver`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(waiverData),
+    }
+  );
+  return response.json();
+};
+
+export const rejectLoanWaiver = async (waiverData) => {
+  const response = await fetch(
+    `${supabaseUrl}/functions/v1/reject-loan-waiver`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(waiverData),
+    }
+  );
+  return response.json();
+};
+
+export const rescheduleLoan = async (waiverData) => {
+  const response = await fetch(
+    `${supabaseUrl}/functions/v1/reschedule-loan`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(waiverData),
+    }
+  );
+  return response.json();
+};
+
+export const writeOffLoan = async (waiverData) => {
+  const response = await fetch(
+    `${supabaseUrl}/functions/v1/write-off-loan`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(waiverData),
+    }
+  );
+  return response.json();
 };

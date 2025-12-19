@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Dashboard = () => {
+const ProfitAndLoss = () => {
   return (
     <div style={{
       display: 'flex',
@@ -22,7 +22,7 @@ const Dashboard = () => {
           fontSize: '4rem',
           marginBottom: '1rem',
         }}>
-          📊
+          📈
         </div>
         <h1 style={{
           fontSize: '2rem',
@@ -30,7 +30,7 @@ const Dashboard = () => {
           margin: '0 0 1rem 0',
           fontWeight: 600,
         }}>
-          Dashboard
+          P&L
         </h1>
         <p style={{
           fontSize: '1.1rem',
@@ -45,11 +45,11 @@ const Dashboard = () => {
           color: '#999',
           margin: '1rem 0 0 0',
         }}>
-          We're working on bringing you comprehensive dashboard analytics and reporting.
+          Profit and Loss financial reporting.
         </p>
       </div>
     </div>
   );
 };
 
-export default Dashboard;
+export default ProfitAndLoss;

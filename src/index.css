@@ -1,4 +1,7 @@
-/* src/index.css - REDESIGNED (Inter Font, Mobile Responsive) */
+/* src/index.css - FINAL GLOBAL VERSION
+   Single source of truth for entire LMS application
+   All styling consolidated here - NO page-specific CSS files
+*/
 
 @import url('https://rsms.me/inter/inter.css');
 
@@ -9,7 +12,7 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Color Variables */
+  /* Color Variables - STANDARDIZED */
   --color-primary: #0176d3;
   --color-primary-dark: #015ab8;
   --color-primary-light: #f0f7ff;
@@ -22,6 +25,18 @@
   --color-success: #28a745;
   --color-danger: #dc3545;
   --color-warning: #ffc107;
+  
+  /* Status Colors */
+  --status-active: #0d47a1;
+  --status-active-bg: #e3f2fd;
+  --status-pending: #e65100;
+  --status-pending-bg: #fff3e0;
+  --status-closed: #1b5e20;
+  --status-closed-bg: #e8f5e9;
+  --status-inactive: #c62828;
+  --status-inactive-bg: #ffebee;
+  --status-written-off: #c62828;
+  --status-written-off-bg: #ffebee;
   
   /* Spacing */
   --spacing-xs: 0.25rem;
@@ -75,7 +90,10 @@ body {
   height: 100%;
 }
 
-/* Typography */
+/* ============================================================================
+   TYPOGRAPHY
+   ============================================================================ */
+
 h1 {
   font-size: 2rem;
   font-weight: 600;
@@ -133,7 +151,65 @@ a:hover {
   color: var(--color-primary-dark);
 }
 
-/* Buttons */
+/* ============================================================================
+   PAGE LAYOUTS
+   ============================================================================ */
+
+.dashboard-page,
+.loans-page,
+.clients-page,
+.payment-entry-page,
+.repayments-page,
+.reports-page,
+.fees-page {
+  background-color: var(--color-light-gray);
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+/* ============================================================================
+   PAGE HEADER - BLUE WITH WHITE TEXT
+   ============================================================================ */
+
+.page-header {
+  background-color: var(--color-primary) !important;
+  color: white !important;
+  padding: 1.5rem 2rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(1, 118, 211, 0.15);
+}
+
+.page-header h1 {
+  color: white !important;
+  font-size: 1.75rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.page-header h2 {
+  color: white !important;
+}
+
+.page-header p {
+  color: rgba(255, 255, 255, 0.9) !important;
+  margin: 0.5rem 0 0 0;
+  font-size: 0.95rem;
+}
+
+.page-header-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* ============================================================================
+   BUTTONS - GLOBAL
+   ============================================================================ */
+
 button {
   font-family: 'Inter', inherit;
   border-radius: var(--radius-md);
@@ -166,34 +242,156 @@ button:disabled {
   opacity: 0.6;
 }
 
-button.btn-secondary {
+.btn-primary {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-dark);
+}
+
+.btn-secondary {
   background-color: var(--color-light-gray);
   color: var(--color-dark);
   border: 1px solid var(--color-border);
 }
 
-button.btn-secondary:hover {
+.btn-secondary:hover {
   background-color: #f0f0f0;
   border-color: var(--color-primary);
 }
 
-button.btn-danger {
+.btn-sm {
+  background-color: transparent !important;
+  color: var(--color-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin: 0 0.25rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-sm:hover {
+  background-color: var(--color-primary-light) !important;
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+}
+
+.btn-danger {
   background-color: var(--color-danger);
 }
 
-button.btn-danger:hover {
+.btn-danger:hover {
   background-color: #c82333;
 }
 
-button.btn-success {
+.btn-success {
   background-color: var(--color-success);
 }
 
-button.btn-success:hover {
+.btn-success:hover {
   background-color: #218838;
 }
 
-/* Forms */
+/* ============================================================================
+   FILTER BUTTONS & CONTROLS
+   ============================================================================ */
+
+.loans-controls,
+.clients-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 0 1rem 0;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.loans-search,
+.clients-search {
+  flex: 1;
+  min-width: 250px;
+}
+
+.loans-search input,
+.clients-search input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  color: var(--color-dark);
+}
+
+.loans-search input:focus,
+.clients-search input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(1, 118, 211, 0.1);
+}
+
+.loans-filters,
+.clients-filters {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.status-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-label {
+  color: var(--color-gray);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.filter-btn {
+  background-color: white;
+  color: var(--color-dark);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-transform: capitalize;
+  display: inline-flex;
+  align-items: center;
+}
+
+.filter-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.filter-btn.active {
+  background-color: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.export-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ============================================================================
+   FORMS
+   ============================================================================ */
+
 input,
 textarea,
 select {
@@ -224,7 +422,27 @@ select:disabled {
   opacity: 0.6;
 }
 
-/* Tables */
+/* ============================================================================
+   TABLES - STANDARDIZED
+   ============================================================================ */
+
+.table-container {
+  padding: 0;
+  overflow-x: auto;
+  background: white;
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.table-stats {
+  padding: 1rem;
+  background: var(--color-light-gray);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.9rem;
+  color: var(--color-gray);
+  font-weight: 500;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -233,27 +451,292 @@ table {
 }
 
 thead {
-  background-color: var(--color-primary);
-  color: #ffffff;
+  background-color: #f3f2f2;
+  color: var(--color-dark);
 }
 
 th {
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   text-align: left;
   font-weight: 600;
   border-bottom: 2px solid var(--color-border);
+  font-size: 0.9rem;
+  user-select: none;
+}
+
+/* Sortable headers */
+th[style*="cursor: pointer"] {
+  color: var(--color-primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+th[style*="cursor: pointer"]:hover {
+  background-color: var(--color-primary-light);
 }
 
 td {
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--color-border);
+  font-size: 0.9rem;
+  color: var(--color-dark);
 }
 
-tbody tr:hover {
-  background-color: var(--color-light-gray);
+.loans-table,
+.clients-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
 }
 
-/* Cards */
+.loans-table th,
+.clients-table th {
+  background-color: #f3f2f2;
+  color: var(--color-dark);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--color-border);
+  font-size: 0.9rem;
+}
+
+.loans-table td,
+.clients-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.9rem;
+  color: var(--color-dark);
+}
+
+/* ============================================================================
+   ACTION CELL & BUTTONS
+   ============================================================================ */
+
+.action-cell {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.action-cell .btn-sm {
+  background-color: transparent !important;
+  color: var(--color-primary);
+  border: 1px solid var(--color-border);
+  margin: 0;
+}
+
+.action-cell .btn-sm:hover {
+  background-color: var(--color-primary-light) !important;
+}
+
+/* ============================================================================
+   TABLE ROW HOVER - WHITE TEXT ON BLUE
+   ============================================================================ */
+
+.loans-table tbody tr:hover,
+.clients-table tbody tr:hover {
+  background-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.loans-table tbody tr:hover td,
+.clients-table tbody tr:hover td {
+  color: white;
+}
+
+/* Action buttons on hover row - keep outline style */
+.loans-table tbody tr:hover .action-cell .btn-sm,
+.clients-table tbody tr:hover .action-cell .btn-sm {
+  background-color: transparent !important;
+  color: white;
+  border-color: white;
+}
+
+.loans-table tbody tr:hover .action-cell .btn-sm:hover,
+.clients-table tbody tr:hover .action-cell .btn-sm:hover {
+  background-color: white !important;
+  color: var(--color-primary);
+  border-color: white;
+}
+
+.loans-table tbody tr:hover .loan-link,
+.loans-table tbody tr:hover .client-link,
+.clients-table tbody tr:hover .loan-link,
+.clients-table tbody tr:hover .client-link {
+  color: white;
+  text-decoration: underline;
+}
+
+/* Links in tables */
+.loan-link,
+.client-link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  padding: 0;
+  font-size: inherit;
+  transition: all var(--transition-fast);
+}
+
+.loan-link:hover,
+.client-link:hover {
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+
+/* ============================================================================
+   STATUS BADGES
+   ============================================================================ */
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.status-badge.active {
+  background-color: var(--status-active-bg);
+  color: var(--status-active);
+}
+
+.status-badge.pending {
+  background-color: var(--status-pending-bg);
+  color: var(--status-pending);
+}
+
+.status-badge.closed {
+  background-color: var(--status-closed-bg);
+  color: var(--status-closed);
+}
+
+.status-badge.inactive {
+  background-color: var(--status-inactive-bg);
+  color: var(--status-inactive);
+}
+
+.status-badge.written-off {
+  background-color: var(--status-written-off-bg);
+  color: var(--status-written-off);
+}
+
+/* On hover row, adapt badge colors */
+.loans-table tbody tr:hover .status-badge,
+.clients-table tbody tr:hover .status-badge {
+  background-color: rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+/* ============================================================================
+   PAGINATION - FIXED FOR VISIBILITY
+   ============================================================================ */
+
+.pagination-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  background: var(--color-light-gray);
+  border-top: 1px solid var(--color-border);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  margin-top: -1px;
+  gap: 1rem;
+}
+
+.page-size-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.page-size-selector span {
+  font-size: 0.9rem;
+  color: var(--color-gray);
+  font-weight: 500;
+}
+
+.page-size-btn {
+  background-color: white;
+  color: var(--color-dark);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  min-width: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-size-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.page-size-btn.active {
+  background-color: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.pagination-nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.btn-pagination {
+  background-color: white;
+  color: var(--color-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-pagination:hover:not(:disabled) {
+  background-color: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+}
+
+.btn-pagination:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: var(--color-gray);
+}
+
+/* Page info - DARK TEXT on WHITE (VISIBLE!) */
+.page-info {
+  font-size: 0.9rem;
+  color: var(--color-dark) !important;
+  font-weight: 600;
+  min-width: 140px;
+  text-align: center;
+  background-color: white;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+/* ============================================================================
+   CARDS
+   ============================================================================ */
+
 .card {
   background-color: #ffffff;
   border: 1px solid var(--color-border);
@@ -268,7 +751,10 @@ tbody tr:hover {
   border-color: var(--color-primary);
 }
 
-/* Modal */
+/* ============================================================================
+   MODALS
+   ============================================================================ */
+
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -295,7 +781,10 @@ tbody tr:hover {
   animation: slideUp 0.3s ease;
 }
 
-/* Animations */
+/* ============================================================================
+   ANIMATIONS
+   ============================================================================ */
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -316,7 +805,10 @@ tbody tr:hover {
   }
 }
 
-/* Utility Classes */
+/* ============================================================================
+   UTILITY CLASSES
+   ============================================================================ */
+
 .text-center {
   text-align: center;
 }
@@ -371,7 +863,22 @@ tbody tr:hover {
 .p-3 { padding: var(--spacing-lg); }
 .p-4 { padding: var(--spacing-xl); }
 
-/* Mobile Responsive */
+.hidden {
+  display: none;
+}
+
+.loading-state,
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: var(--color-gray);
+  font-size: 0.95rem;
+}
+
+/* ============================================================================
+   MOBILE RESPONSIVE
+   ============================================================================ */
+
 @media (max-width: 1024px) {
   :root {
     --spacing-lg: 1.25rem;
@@ -432,6 +939,44 @@ tbody tr:hover {
     width: 95%;
     padding: 1.5rem;
   }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .loans-controls,
+  .clients-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .loans-search,
+  .clients-search {
+    width: 100%;
+  }
+
+  .loans-filters,
+  .clients-filters {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .pagination-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-size-selector,
+  .pagination-nav {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .page-info {
+    width: 100%;
+  }
 }
 
 @media (max-width: 480px) {
@@ -480,7 +1025,10 @@ tbody tr:hover {
   }
 }
 
-/* Scrollbar Styling */
+/* ============================================================================
+   SCROLLBAR STYLING
+   ============================================================================ */
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -499,7 +1047,10 @@ tbody tr:hover {
   background: #555;
 }
 
-/* Print Styles */
+/* ============================================================================
+   PRINT STYLES
+   ============================================================================ */
+
 @media print {
   body {
     background-color: #ffffff;
