@@ -1,8 +1,10 @@
 // src/components/Client360Modal.jsx
+// Updated: 22-DEC-2025 - Added loan number hyperlinks, fixed missing data display
 import React, { useState, useEffect } from "react";
 import { supabase, getNextRepayment, getLoanStatistics } from "../services/supabaseService";
 import Loans360Modal from "./Loans360Modal";
 import EditClientModal from "./EditClientModal";
+import { formatDate as formatDateUtil } from "../utils/transactionHelpers";
 
 // Helper to format phone for href
 const formatPhoneLink = (phone) => {
@@ -33,10 +35,9 @@ export default function Client360Modal({ isOpen, onClose, clientId }) {
 
   const fetchLoans = async () => {
     setLoading(true);
-    // Fetch loans
     const { data: loanData, error } = await supabase
       .from('loans')
-      .select('*')
+      .select('*, loan_balances(*)')
       .eq('client_id', clientId);
 
     if (error) {
@@ -45,7 +46,6 @@ export default function Client360Modal({ isOpen, onClose, clientId }) {
       return;
     }
 
-    // Fetch next repayment and stats for each loan
     const loansWithDetails = await Promise.all(
       (loanData || []).map(async (loan) => {
         const [nextRepaymentRes, statsRes] = await Promise.all([
@@ -67,159 +67,204 @@ export default function Client360Modal({ isOpen, onClose, clientId }) {
   const handleSaveClient = (updatedClient) => {
     setClient(updatedClient);
     setShowEdit(false);
-    fetchClient(); // Refresh client data
+    fetchClient();
+  };
+
+  const handleViewLoan = (loan) => {
+    setSelectedLoan(loan);
+    setShowLoan(true);
+    // Best practice: Keep Client360Modal open, user can close it manually if needed
+  };
+
+  // Helper function to extract loan balance data
+  const getBalance = (loan) => {
+    const balances = Array.isArray(loan.loan_balances) ? loan.loan_balances[0] : loan.loan_balances;
+    return balances || {};
+  };
+
+  // Helper to format term display
+  const formatTerm = (term, frequency) => {
+    if (!term || !frequency) return '-';
+    const unit = frequency === 'Weekly' ? 'Weeks' :
+                 frequency === 'Fortnightly' ? 'Fortnights' : 'Months';
+    return `${term} ${unit}`;
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  const formatMoney = (amount) => {
+    return (amount || 0).toFixed(2);
   };
 
   if (!isOpen) return null;
 
   return (
-    <div style={overlayStyle} onMouseDown={(e) => {
-      // Only close if clicking directly on the dark overlay, not modal content
-      if (e.target === e.currentTarget) {
-        onClose();
-      }
-    }}>
-      <div style={modalStyle} onMouseDown={(e) => e.stopPropagation()}>
+    <>
+      <div style={overlayStyle} onMouseDown={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}>
+        <div style={modalStyle} onMouseDown={(e) => e.stopPropagation()}>
 
-        {/* Header Actions */}
-        <div style={headerActionsStyle}>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <div style={avatarPlaceholderStyle}>
-              {client?.first_name?.charAt(0)}{client?.last_name?.charAt(0)}
+          {/* Header Actions */}
+          <div style={headerActionsStyle}>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <div style={avatarPlaceholderStyle}>
+                {client?.first_name?.charAt(0)}{client?.last_name?.charAt(0)}
+              </div>
+              <div>
+                <h2 style={clientNameStyle}>{client?.first_name} {client?.last_name}</h2>
+                <p style={clientCodeStyle}>{client?.client_code || 'No Code'}</p>
+              </div>
             </div>
             <div>
-              <h2 style={clientNameStyle}>{client?.first_name} {client?.last_name}</h2>
-              <p style={clientCodeStyle}>{client?.client_code || 'No Code'}</p>
+              <button onClick={() => setShowEdit(true)} style={editBtnStyle}>Edit Client</button>
+              <button onClick={onClose} style={closeBtnStyle}>×</button>
             </div>
           </div>
-          <div>
-            <button onClick={() => setShowEdit(true)} style={editBtnStyle}>Edit Client</button>
-            <button onClick={onClose} style={closeBtnStyle}>×</button>
-          </div>
+
+          {/* CONTACT HEADER */}
+          {!loading && (
+            <div style={contactHeaderStyle}>
+              {client?.email && (
+                <span style={contactItemStyle}>
+                  📧 <a href={`mailto:${client.email}`} style={linkStyle}>{client.email}</a>
+                </span>
+              )}
+              {client?.mobile_phone && (
+                <span style={contactItemStyle}>
+                  📱 Mob: <a href={formatPhoneLink(client.mobile_phone)} style={linkStyle}>{client.mobile_phone}</a>
+                </span>
+              )}
+              {client?.work_phone && (
+                <span style={contactItemStyle}>
+                  🏢 Work: <a href={formatPhoneLink(client.work_phone)} style={linkStyle}>{client.work_phone}</a>
+                </span>
+              )}
+              {client?.home_phone && (
+                <span style={contactItemStyle}>
+                  🏠 Home: <a href={formatPhoneLink(client.home_phone)} style={linkStyle}>{client.home_phone}</a>
+                </span>
+              )}
+            </div>
+          )}
+
+          {loading ? <p style={{ padding: '2rem', textAlign: 'center' }}>Loading Client Details...</p> : (
+            <div style={contentContainerStyle}>
+
+              {/* TOP SECTION: Contact & Details */}
+              <div style={topSectionStyle}>
+
+                {/* LEFT CARD: Contact Info */}
+                <div style={{ flex: 1, paddingRight: '2rem', borderRight: '1px solid #eee' }}>
+                  <h4 style={sectionTitleStyle}>Contact Info</h4>
+                  <InfoRow label="Company Name" value={client?.company_name} />
+                  <div style={dividerStyle}></div>
+                  <InfoRow label="Address" value={client?.address} />
+                  <InfoRow label="City" value={client?.city} />
+                  <InfoRow label="Region" value={client?.region} />
+                  <InfoRow label="Postcode" value={client?.postcode} />
+                  <div style={dividerStyle}></div>
+                  <InfoRow label="Employment Status" value={client?.employment_status} />
+                  <InfoRow label="Status" value={client?.status} />
+                </div>
+
+                {/* RIGHT CARD: Client Details */}
+                <div style={{ flex: 1, paddingLeft: '2rem' }}>
+                  <h4 style={sectionTitleStyle}>Client Details</h4>
+                  <InfoRow label="Client Type" value={client?.client_type} />
+                  <InfoRow label="Date of Birth" value={formatDate(client?.date_of_birth)} />
+                  <InfoRow label="Gender" value={client?.gender} />
+                  <InfoRow label="Occupation" value={client?.occupation} />
+                  <div style={dividerStyle}></div>
+                  <InfoRow label="ID Type" value={client?.id_type} />
+                  <InfoRow label="ID Number" value={client?.id_number} />
+                  <div style={dividerStyle}></div>
+                  <InfoRow label="Monthly Income" value={client?.monthly_income ? `$${formatMoney(client.monthly_income)}` : '-'} />
+                  <InfoRow label="Credit Rating" value={client?.credit_rating} />
+                </div>
+
+              </div>
+
+              {/* BOTTOM SECTION: Loans */}
+              <div style={loansSectionStyle}>
+                <h3 style={loansTitleStyle}>Active Loans & History</h3>
+                <div style={tableContainerStyle}>
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr style={headerRowStyle}>
+                        <th style={thStyle}>Loan No.</th>
+                        <th style={thStyle}>Amount</th>
+                        <th style={thStyle}>Rate</th>
+                        <th style={thStyle}>Term</th>
+                        <th style={thStyle}>Start Date</th>
+                        <th style={thStyle}>Maturity</th>
+                        <th style={thStyle}>Balance</th>
+                        <th style={thStyle}>Outstanding</th>
+                        <th style={thStyle}>Payments</th>
+                        <th style={thStyle}>Overdue</th>
+                        <th style={thStyle}>Next Due</th>
+                        <th style={thStyle}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loans.map(loan => (
+                        <tr key={loan.id} style={rowStyle}>
+                          <td style={tdStyle}>
+                            <button 
+                              style={loanLinkStyle}
+                              onClick={() => handleViewLoan(loan)}
+                            >
+                              {loan.loan_number}
+                            </button>
+                          </td>
+                          <td style={tdStyle}>${formatMoney(loan.loan_amount || 0)}</td>
+                          <td style={tdStyle}>{loan.annual_interest_rate ? `${loan.annual_interest_rate}%` : '-'}</td>
+                          <td style={tdStyle}>{formatTerm(loan.term, loan.repayment_frequency)}</td>
+                          <td style={tdStyle}>{formatDate(loan.start_date || loan.created_at)}</td>
+                          <td style={tdStyle}>{formatDate(loan.end_date || loan.maturity_date)}</td>
+                          <td style={{ ...tdStyle, fontWeight: 'bold' }}>${formatMoney(getBalance(loan).current_outstanding_balance || 0)}</td>
+                          <td style={tdStyle}>${formatMoney(getBalance(loan).outstanding_principal || 0)}</td>
+                          <td style={{ ...tdStyle, textAlign: 'center' }}>{loan.stats?.totalPaymentsMade || 0}</td>
+                          <td style={{ ...tdStyle, color: (loan.stats?.overdueAmount > 0) ? '#d32f2f' : 'inherit', fontWeight: (loan.stats?.overdueAmount > 0) ? 'bold' : 'normal' }}>
+                            ${formatMoney(loan.stats?.overdueAmount || 0)}
+                          </td>
+                          <td style={tdStyle}>
+                            {loan.nextRepayment ? (
+                              <div>
+                                <div>{formatDate(loan.nextRepayment.due_date)}</div>
+                                <div style={{ fontSize: '0.8em', color: '#666' }}>${formatMoney(loan.nextRepayment.amount_due)}</div>
+                              </div>
+                            ) : '-'}
+                          </td>
+                          <td style={tdStyle}>
+                            <StatusBadge status={loan.status} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          )}
         </div>
 
-        {/* NEW CONTACT HEADER */}
-        {!loading && (
-          <div style={contactHeaderStyle}>
-            {client?.email && (
-              <span style={contactItemStyle}>
-                📧 <a href={`mailto:${client.email}`} style={linkStyle}>{client.email}</a>
-              </span>
-            )}
-            {client?.mobile_phone && (
-              <span style={contactItemStyle}>
-                📱 Mob: <a href={formatPhoneLink(client.mobile_phone)} style={linkStyle}>{client.mobile_phone}</a>
-              </span>
-            )}
-            {client?.work_phone && (
-              <span style={contactItemStyle}>
-                🏢 Work: <a href={formatPhoneLink(client.work_phone)} style={linkStyle}>{client.work_phone}</a>
-              </span>
-            )}
-            {client?.home_phone && (
-              <span style={contactItemStyle}>
-                🏠 Home: <a href={formatPhoneLink(client.home_phone)} style={linkStyle}>{client.home_phone}</a>
-              </span>
-            )}
-          </div>
-        )}
-
-        {loading ? <p style={{ padding: '2rem', textAlign: 'center' }}>Loading Client Details...</p> : (
-          <div style={contentContainerStyle}>
-
-            {/* TOP SECTION: Contact & Details */}
-            <div style={topSectionStyle}>
-
-              {/* LEFT CARD: Contact Info */}
-              <div style={{ flex: 1, paddingRight: '2rem', borderRight: '1px solid #eee' }}>
-                <h4 style={sectionTitleStyle}>Contact Info</h4>
-                <InfoRow label="Company Name" value={client?.company_name} />
-                <div style={dividerStyle}></div>
-                <InfoRow label="Address" value={client?.address} />
-                <InfoRow label="City" value={client?.city} />
-                <InfoRow label="Region" value={client?.region} />
-                <InfoRow label="Postcode" value={client?.postcode} />
-                <div style={dividerStyle}></div>
-                <InfoRow label="Employment Status" value={client?.employment_status} />
-                <InfoRow label="Status" value={client?.status} />
-              </div>
-
-              {/* RIGHT CARD: Client Details */}
-              <div style={{ flex: 1, paddingLeft: '2rem' }}>
-                <h4 style={sectionTitleStyle}>Client Details</h4>
-                <InfoRow label="Client Type" value={client?.client_type} />
-                <InfoRow label="Date of Birth" value={formatDate(client?.date_of_birth)} />
-                <InfoRow label="Gender" value={client?.gender} />
-                <InfoRow label="Occupation" value={client?.occupation} />
-                <div style={dividerStyle}></div>
-                <InfoRow label="ID Type" value={client?.id_type} />
-                <InfoRow label="ID Number" value={client?.id_number} />
-                <div style={dividerStyle}></div>
-                <InfoRow label="Monthly Income" value={client?.monthly_income ? `$${formatMoney(client.monthly_income)}` : '-'} />
-                <InfoRow label="Credit Rating" value={client?.credit_rating} />
-              </div>
-
-            </div>
-
-            {/* BOTTOM SECTION: Loans */}
-            <div style={loansSectionStyle}>
-              <h3 style={loansTitleStyle}>Active Loans & History</h3>
-              <div style={tableContainerStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr style={headerRowStyle}>
-                      <th style={thStyle}>Loan #</th>
-                      <th style={thStyle}>Type</th>
-                      <th style={thStyle}>Source</th>
-                      <th style={thStyle}>Start Date</th>
-                      <th style={thStyle}>Maturity Date</th>
-                      <th style={thStyle}>Balance</th>
-                      <th style={thStyle}>Outstanding</th>
-                      <th style={thStyle}>Payments Made</th>
-                      <th style={thStyle}>Overdue</th>
-                      <th style={thStyle}>Next Due</th>
-                      <th style={thStyle}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loans.map(loan => (
-                      <tr key={loan.id} onClick={() => { setSelectedLoan(loan); setShowLoan(true); }} style={rowStyle}>
-                        <td style={tdStyle}>{loan.loan_number}</td>
-                        <td style={tdStyle}>{loan.loan_type || loan.type || '-'}</td>
-                        <td style={tdStyle}>{loan.source || loan.loan_source || '-'}</td>
-                        <td style={tdStyle}>{formatDate(loan.start_date || loan.created_at)}</td>
-                        <td style={tdStyle}>{formatDate(loan.end_date || loan.maturity_date)}</td>
-                        <td style={{ ...tdStyle, fontWeight: 'bold' }}>${formatMoney(loan.current_balance || loan.balance)}</td>
-                        <td style={tdStyle}>${formatMoney(loan.principal_outstanding || loan.outstanding_principal)}</td>
-                        <td style={{ ...tdStyle, textAlign: 'center' }}>{loan.stats?.totalPaymentsMade || 0}</td>
-                        <td style={{ ...tdStyle, color: (loan.stats?.overdueAmount > 0) ? '#d32f2f' : 'inherit', fontWeight: (loan.stats?.overdueAmount > 0) ? 'bold' : 'normal' }}>
-                          ${formatMoney(loan.stats?.overdueAmount || 0)}
-                        </td>
-                        <td style={tdStyle}>
-                          {loan.nextRepayment ? (
-                            <div>
-                              <div>{formatDate(loan.nextRepayment.due_date)}</div>
-                              <div style={{ fontSize: '0.8em', color: '#666' }}>${formatMoney(loan.nextRepayment.amount_due)}</div>
-                            </div>
-                          ) : '-'}
-                        </td>
-                        <td style={tdStyle}>
-                          <StatusBadge status={loan.status} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-          </div>
-        )}
+        {showEdit && <EditClientModal client={client} onClose={() => setShowEdit(false)} onSave={handleSaveClient} />}
       </div>
 
+      {/* Loans360Modal - Renders on top of Client360Modal */}
       {showLoan && <Loans360Modal loan={selectedLoan} onClose={() => setShowLoan(false)} />}
-      {showEdit && <EditClientModal client={client} onClose={() => setShowEdit(false)} onSave={handleSaveClient} />}
-    </div>
+    </>
   );
 }
 
@@ -242,19 +287,6 @@ const StatusBadge = ({ status }) => {
       {status}
     </span>
   );
-};
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  const d = new Date(dateStr);
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  return `${day}-${month}-${year}`;
-};
-
-const formatMoney = (amount) => {
-  return (amount || 0).toFixed(2);
 };
 
 // Styles
@@ -287,10 +319,21 @@ const tableContainerStyle = { background: '#fff', borderRadius: '0.5rem', boxSha
 const tableStyle = { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' };
 const headerRowStyle = { background: '#f1f3f5', borderBottom: '2px solid #dee2e6' };
 const thStyle = { padding: '1rem', textAlign: 'left', fontWeight: 600, color: '#495057', whiteSpace: 'nowrap' };
-const rowStyle = { borderBottom: '1px solid #eee', cursor: 'pointer', transition: 'background 0.2s' };
+const rowStyle = { borderBottom: '1px solid #eee', transition: 'background 0.2s' };
 const tdStyle = { padding: '1rem', color: '#212529', verticalAlign: 'middle' };
 
-// New Styles for Contact Header
+const loanLinkStyle = { 
+  background: 'none', 
+  border: 'none', 
+  color: '#0176d3', 
+  textDecoration: 'underline', 
+  cursor: 'pointer', 
+  fontSize: '0.9rem',
+  fontWeight: 600,
+  padding: 0
+};
+
+// Contact Header Styles
 const contactHeaderStyle = { padding: '0.5rem 2rem', background: '#f8f9fa', borderBottom: '1px solid #eee', display: 'flex', gap: '2rem', fontSize: '0.9rem', color: '#555' };
 const contactItemStyle = { display: 'flex', alignItems: 'center', gap: '0.5rem' };
 const linkStyle = { color: '#0176d3', textDecoration: 'none' };

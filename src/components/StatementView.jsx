@@ -1,5 +1,7 @@
+// src/components/StatementView.jsx
+// Updated: 22-DEC-2025 - Removed loan_products, fixed loan_balances usage
 import React, { useRef } from 'react';
-import { formatDate } from '../utils/dateFormatter';
+import { formatDate, getTransactionTypeName, formatCurrency } from '../utils/transactionHelpers';
 
 export default function StatementView({ loan, transactions, onClose }) {
     const statementRef = useRef();
@@ -9,15 +11,23 @@ export default function StatementView({ loan, transactions, onClose }) {
     };
 
     const today = new Date();
-    const periodStart = new Date(today.getFullYear(), today.getMonth() - 1, 1); // rough guess or passed in
-
+    
+    // Get client and balance data
     const client = loan?.clients || {};
-    const product = loan?.loan_products || {};
+    const balance = Array.isArray(loan?.loan_balances) 
+        ? loan.loan_balances[0] 
+        : loan?.loan_balances || {};
 
-    // Calculate totals for statement period if filtering needed, otherwise show all
+    // Calculate totals for statement period
     const totalPaid = transactions
-        .filter(t => t.txn_type === 'PAY')
+        .filter(t => t.txn_type === 'PAY' || t.transaction_type === 'PAY')
         .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+
+    // Get current balances from loan_balances table
+    const currentOutstanding = balance.current_outstanding_balance || 0;
+    const outstandingPrincipal = balance.outstanding_principal || 0;
+    const outstandingInterest = balance.outstanding_interest || 0;
+    const unpaidFees = balance.unpaid_fees || 0;
 
     return (
         <div style={overlayStyle}>
@@ -27,7 +37,6 @@ export default function StatementView({ loan, transactions, onClose }) {
                     <button onClick={onClose} style={closeBtnStyle}>Back</button>
                     <div style={{ display: 'flex', gap: '1rem' }}>
                         <button onClick={handlePrint} style={primaryActionBtn}>🖨️ Print Statement</button>
-                        {/* PDF Button can be added here if using a library */}
                     </div>
                 </div>
 
@@ -44,7 +53,7 @@ export default function StatementView({ loan, transactions, onClose }) {
                             </div>
                             <div style={{ textAlign: 'right' }}>
                                 <div style={{ fontWeight: 'bold', fontSize: '1.2rem', color: '#333' }}>All Apps Limited</div>
-                                <div style={labelData}>123 Business Rd, Auckland</div>
+                                <div style={labelData}>15 Dudley Street Lower Hutt 5010</div>
                             </div>
                         </div>
                     </div>
@@ -68,7 +77,7 @@ export default function StatementView({ loan, transactions, onClose }) {
                                 <div style={rowItem}><span style={label}>Loan Number:</span> {loan.loan_number}</div>
                                 <div style={rowItem}><span style={label}>Principal:</span> ${loan.loan_amount?.toFixed(2)}</div>
                                 <div style={rowItem}><span style={label}>Rate:</span> {loan.annual_interest_rate}% p.a.</div>
-                                <div style={rowItem}><span style={label}>Term:</span> {loan.term}</div>
+                                <div style={rowItem}><span style={label}>Term:</span> {loan.term} {loan.repayment_frequency}</div>
                                 <div style={rowItem}><span style={label}>Start Date:</span> {formatDate(loan.start_date)}</div>
                                 <div style={rowItem}><span style={label}>Status:</span> {loan.status?.toUpperCase()}</div>
                             </div>
@@ -81,13 +90,13 @@ export default function StatementView({ loan, transactions, onClose }) {
                         <div style={boxContent}>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <div style={{ flex: 1 }}>
-                                    <div style={rowItem}><span style={label}>Principal Outstanding:</span> ${loan.outstanding_principal?.toFixed(2)}</div>
-                                    <div style={rowItem}><span style={label}>Interest Accrued:</span> ${loan.loan_balances?.outstanding_interest?.toFixed(2) || (loan.interest_accrued || 0).toFixed(2)}</div>
-                                    <div style={rowItem}><span style={label}>Fees Pending:</span> ${loan.loan_balances?.unpaid_fees?.toFixed(2) || (loan.fees_outstanding || 0).toFixed(2)}</div>
+                                    <div style={rowItem}><span style={label}>Principal Outstanding:</span> ${outstandingPrincipal.toFixed(2)}</div>
+                                    <div style={rowItem}><span style={label}>Interest Accrued:</span> ${outstandingInterest.toFixed(2)}</div>
+                                    <div style={rowItem}><span style={label}>Fees Pending:</span> ${unpaidFees.toFixed(2)}</div>
                                 </div>
                                 <div style={{ flex: 1, borderLeft: '1px solid #ddd', paddingLeft: '2rem' }}>
                                     <div style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem' }}>
-                                        TOTAL OUTSTANDING: <span style={{ color: '#0176d3' }}>${loan.current_balance?.toFixed(2)}</span>
+                                        TOTAL OUTSTANDING: <span style={{ color: '#0176d3' }}>${currentOutstanding.toFixed(2)}</span>
                                     </div>
                                     <div style={rowItem}><span style={label}>Total Payments Made:</span> ${totalPaid.toFixed(2)}</div>
                                 </div>
@@ -112,11 +121,12 @@ export default function StatementView({ loan, transactions, onClose }) {
                                 </thead>
                                 <tbody>
                                     {transactions.length > 0 ? transactions.map((t, i) => {
-                                        const isCredit = t.txn_type === 'PAY';
+                                        const txnType = t.txn_type || t.transaction_type;
+                                        const isCredit = txnType === 'PAY';
                                         return (
                                             <tr key={i} style={tr}>
-                                                <td style={td}>{formatDate(t.txn_date)}</td>
-                                                <td style={td}>{t.txn_type}</td>
+                                                <td style={td}>{formatDate(t.txn_date || t.transaction_date)}</td>
+                                                <td style={td}>{getTransactionTypeName(txnType)}</td>
                                                 <td style={td}>
                                                     {t.notes || t.description || '-'}
                                                     {t.allocation_breakdown && (
@@ -142,7 +152,7 @@ export default function StatementView({ loan, transactions, onClose }) {
 
                     {/* FOOTER */}
                     <div style={{ marginTop: '2rem', borderTop: '2px solid #333', paddingTop: '1rem', textAlign: 'center', fontSize: '0.8rem', color: '#666' }}>
-                        Any enquiries regarding this statement should be directed to: contact@allapps.co.nz | Phone: +64 4 123 4567
+                        Any enquiries regarding this statement should be directed to: credit@allapps.co.nz | Phone: 0800 765 555
                     </div>
 
                     <style>{`

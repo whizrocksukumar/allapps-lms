@@ -1,57 +1,82 @@
-import React, { useEffect, useState } from 'react';
+// src/pages/RepaymentSchedule.jsx
+// Updated: 22-DEC-2025 - Added loan hyperlinks, payments made column, changed # to No.
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseService';
+import { formatDate } from '../utils/transactionHelpers';
 import Client360Modal from '../components/Client360Modal';
+import Loans360Modal from '../components/Loans360Modal';
 
 export default function RepaymentSchedule() {
-  const [repayments, setRepayments] = useState([]);
+  const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [showClientModal, setShowClientModal] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState(null);
-  const [filterStatus, setFilterStatus] = useState('all'); // all, pending, paid
-  const [searchTerm, setSearchTerm] = useState('');
+  const [showLoanModal, setShowLoanModal] = useState(false);
+  const [selectedLoan, setSelectedLoan] = useState(null);
+  const [paymentsMap, setPaymentsMap] = useState({});
 
   useEffect(() => {
-    fetchRepayments();
+    fetchSchedules();
+    fetchPaymentsCounts();
   }, []);
 
-  const fetchRepayments = async () => {
+  const fetchSchedules = async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('repayment_schedule')
-        .select('*, loans(id, loan_number, clients(id, first_name, last_name))')
+        .select('*, loans(id, loan_number, annual_interest_rate, clients(id, first_name, last_name))')
         .order('due_date', { ascending: true });
 
       if (error) throw error;
-      setRepayments(data || []);
+      setSchedules(data || []);
     } catch (err) {
-      console.error('Error fetching repayments:', err);
+      console.error('Error fetching schedules:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredRepayments = repayments.filter(r => {
-    const matchesStatus = filterStatus === 'all' || r.status === filterStatus;
+  const fetchPaymentsCounts = async () => {
+    try {
+      // Count all payments (PAY type) per loan
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('loan_id, txn_type')
+        .eq('txn_type', 'PAY');
+
+      if (error) throw error;
+
+      // Build map of loan_id -> payment count
+      const counts = {};
+      (data || []).forEach(payment => {
+        counts[payment.loan_id] = (counts[payment.loan_id] || 0) + 1;
+      });
+
+      setPaymentsMap(counts);
+    } catch (err) {
+      console.error('Error fetching payment counts:', err);
+    }
+  };
+
+  const handleViewLoan = (schedule) => {
+    if (schedule.loans) {
+      setSelectedLoan(schedule.loans);
+      setShowLoanModal(true);
+    }
+  };
+
+  const filteredSchedules = schedules.filter(r => {
     const matchesSearch = 
       r.loans?.loan_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       `${r.loans?.clients?.first_name} ${r.loans?.clients?.last_name}`.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
+
+    const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
+
+    return matchesSearch && matchesStatus;
   });
-
-  const handleMarkPaid = async (id) => {
-    try {
-      const { error } = await supabase
-        .from('repayment_schedule')
-        .update({ status: 'paid', paid_at: new Date().toISOString() })
-        .eq('id', id);
-
-      if (error) throw error;
-      fetchRepayments();
-    } catch (err) {
-      console.error('Error updating repayment:', err);
-    }
-  };
 
   const styles = {
     container: {
@@ -77,21 +102,22 @@ export default function RepaymentSchedule() {
       marginBottom: '1.5rem',
       flexWrap: 'wrap',
     },
-    searchInput: {
+    input: {
       flex: 1,
-      minWidth: '200px',
+      minWidth: '250px',
       padding: '0.75rem',
       border: '1px solid #ddd',
       borderRadius: '6px',
       fontSize: '0.95rem',
     },
-    filterSelect: {
+    select: {
       padding: '0.75rem',
       border: '1px solid #ddd',
       borderRadius: '6px',
       fontSize: '0.95rem',
       backgroundColor: '#fff',
       cursor: 'pointer',
+      minWidth: '150px',
     },
     table: {
       width: '100%',
@@ -106,36 +132,22 @@ export default function RepaymentSchedule() {
       textAlign: 'left',
       fontWeight: 600,
       color: '#181818',
+      whiteSpace: 'nowrap',
     },
     td: {
       padding: '1rem',
       borderBottom: '1px solid #f0f0f0',
       color: '#181818',
     },
-    statusBadge: {
-      padding: '0.4rem 0.8rem',
-      borderRadius: '6px',
-      fontSize: '0.8rem',
-      fontWeight: 600,
-      textTransform: 'uppercase',
-    },
-    pendingBadge: {
-      backgroundColor: '#fff3e0',
-      color: '#e65100',
-    },
-    paidBadge: {
-      backgroundColor: '#e8f5e9',
-      color: '#2e7d32',
-    },
-    actionBtn: {
-      padding: '0.4rem 0.8rem',
-      backgroundColor: '#0176d3',
-      color: '#fff',
+    loanLink: {
+      color: '#0176d3',
+      background: 'none',
       border: 'none',
-      borderRadius: '4px',
+      textDecoration: 'underline',
       cursor: 'pointer',
-      fontSize: '0.85rem',
-      fontWeight: 500,
+      fontSize: '0.95rem',
+      fontWeight: 600,
+      padding: 0,
     },
     clientLink: {
       color: '#0176d3',
@@ -144,6 +156,14 @@ export default function RepaymentSchedule() {
       textDecoration: 'underline',
       cursor: 'pointer',
       fontSize: '0.95rem',
+    },
+    statusBadge: {
+      padding: '0.4rem 0.8rem',
+      borderRadius: '6px',
+      fontSize: '0.8rem',
+      fontWeight: 600,
+      textTransform: 'uppercase',
+      display: 'inline-block',
     },
     emptyState: {
       textAlign: 'center',
@@ -157,11 +177,21 @@ export default function RepaymentSchedule() {
     },
   };
 
+  const getStatusColor = (status) => {
+    const colors = {
+      pending: { bg: '#fff3cd', color: '#856404' },
+      paid: { bg: '#d4edda', color: '#155724' },
+      overdue: { bg: '#f8d7da', color: '#721c24' },
+      current: { bg: '#d1ecf1', color: '#0c5460' },
+    };
+    return colors[status?.toLowerCase()] || { bg: '#e2e3e5', color: '#383d41' };
+  };
+
   if (loading) {
     return (
       <div style={styles.container}>
         <div style={styles.card}>
-          <div style={styles.loadingState}>Loading repayment schedule...</div>
+          <div style={styles.loadingState}>Loading repayment schedules...</div>
         </div>
       </div>
     );
@@ -178,84 +208,95 @@ export default function RepaymentSchedule() {
             placeholder="Search by loan number or client name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={styles.searchInput}
+            style={styles.input}
           />
           <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            style={styles.filterSelect}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={styles.select}
           >
-            <option value="all">All</option>
+            <option value="all">All Statuses</option>
             <option value="pending">Pending</option>
             <option value="paid">Paid</option>
+            <option value="overdue">Overdue</option>
+            <option value="current">Current</option>
           </select>
         </div>
 
-        {filteredRepayments.length === 0 ? (
+        {filteredSchedules.length === 0 ? (
           <div style={styles.emptyState}>
             <p>No repayment schedules found</p>
           </div>
         ) : (
-          <table style={styles.table}>
-            <thead style={styles.thead}>
-              <tr>
-                <th style={styles.th}>Loan #</th>
-                <th style={styles.th}>Client</th>
-                <th style={styles.th}>Due Date</th>
-                <th style={styles.th}>Amount</th>
-                <th style={styles.th}>Principal</th>
-                <th style={styles.th}>Interest</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRepayments.map(r => (
-                <tr key={r.id}>
-                  <td style={styles.td}>
-                    <strong>{r.loans?.loan_number || 'N/A'}</strong>
-                  </td>
-                  <td style={styles.td}>
-                    <button
-                      onClick={() => {
-                        setSelectedClientId(r.loans?.clients?.id);
-                        setShowClientModal(true);
-                      }}
-                      style={styles.clientLink}
-                    >
-                      {r.loans?.clients?.first_name} {r.loans?.clients?.last_name}
-                    </button>
-                  </td>
-                  <td style={styles.td}>
-                    {new Date(r.due_date).toLocaleDateString('en-NZ')}
-                  </td>
-                  <td style={styles.td}>${r.amount?.toFixed(2)}</td>
-                  <td style={styles.td}>${r.principal?.toFixed(2) || '0.00'}</td>
-                  <td style={styles.td}>${r.interest?.toFixed(2) || '0.00'}</td>
-                  <td style={styles.td}>
-                    <span
-                      style={{
-                        ...styles.statusBadge,
-                        ...(r.status === 'pending' ? styles.pendingBadge : styles.paidBadge),
-                      }}
-                    >
-                      {r.status}
-                    </span>
-                  </td>
-                  <td style={styles.td}>
-                    {r.status === 'pending' && (
-                      <button
-                        onClick={() => handleMarkPaid(r.id)}
-                        style={styles.actionBtn}
-                      >
-                        Mark Paid
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <div style={{ marginBottom: '1rem', color: '#706e6b', fontSize: '0.9rem' }}>
+              Showing {filteredSchedules.length} of {schedules.length} instalments
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={styles.table}>
+                <thead style={styles.thead}>
+                  <tr>
+                    <th style={styles.th}>Instalment No.</th>
+                    <th style={styles.th}>Loan No.</th>
+                    <th style={styles.th}>Client</th>
+                    <th style={styles.th}>Due Date</th>
+                    <th style={styles.th}>Principal</th>
+                    <th style={styles.th}>Interest</th>
+                    <th style={styles.th}>Total Amount</th>
+                    <th style={styles.th}>Payments Made</th>
+                    <th style={styles.th}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSchedules.map(r => {
+                    const statusColors = getStatusColor(r.status);
+                    const paymentsMade = paymentsMap[r.loans?.id] || 0;
+
+                    return (
+                      <tr key={r.id}>
+                        <td style={styles.td}>{r.instalment_number}</td>
+                        <td style={styles.td}>
+                          <button
+                            onClick={() => handleViewLoan(r)}
+                            style={styles.loanLink}
+                          >
+                            {r.loans?.loan_number || 'N/A'}
+                          </button>
+                        </td>
+                        <td style={styles.td}>
+                          <button
+                            onClick={() => {
+                              setSelectedClientId(r.loans?.clients?.id);
+                              setShowClientModal(true);
+                            }}
+                            style={styles.clientLink}
+                          >
+                            {r.loans?.clients?.first_name} {r.loans?.clients?.last_name}
+                          </button>
+                        </td>
+                        <td style={styles.td}>{formatDate(r.due_date)}</td>
+                        <td style={styles.td}>${(r.principal_amount || 0).toFixed(2)}</td>
+                        <td style={styles.td}>${(r.interest_amount || 0).toFixed(2)}</td>
+                        <td style={{ ...styles.td, fontWeight: 'bold' }}>${(r.total_amount || 0).toFixed(2)}</td>
+                        <td style={{ ...styles.td, textAlign: 'center', fontWeight: 600 }}>{paymentsMade}</td>
+                        <td style={styles.td}>
+                          <span
+                            style={{
+                              ...styles.statusBadge,
+                              backgroundColor: statusColors.bg,
+                              color: statusColors.color,
+                            }}
+                          >
+                            {r.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -264,6 +305,13 @@ export default function RepaymentSchedule() {
           isOpen={showClientModal}
           onClose={() => setShowClientModal(false)}
           clientId={selectedClientId}
+        />
+      )}
+
+      {showLoanModal && selectedLoan && (
+        <Loans360Modal
+          loan={selectedLoan}
+          onClose={() => setShowLoanModal(false)}
         />
       )}
     </div>

@@ -1,4 +1,5 @@
 // src/hooks/useLoans.js
+// Updated: 21-DEC-2025 - Removed product_id reference, added annual_interest_rate
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabaseService';
 
@@ -12,7 +13,7 @@ export const useLoans = () => {
         setError(null);
         try {
             // Fetch loans with related data using JOINS
-            // Note: Requires FK relationship between loans and loan_balances
+            // NOTE: annual_interest_rate is now directly on loans table (no more loan_products)
             const { data, error: loansError } = await supabase
                 .from('loans')
                 .select(`
@@ -25,10 +26,9 @@ export const useLoans = () => {
                     end_date,
                     status,
                     term,
+                    repayment_frequency,
                     instalments_due,
-                    repayment_amount,
-                    total_repayable,
-                    product_id,
+                    loan_type,
                     client_id,
                     clients (
                         id,
@@ -52,14 +52,9 @@ export const useLoans = () => {
             // Transform data structure for UI
             const formattedLoans = data.map(loan => {
                 const balance = loan.loan_balances ? loan.loan_balances : {};
-                // Handle 1:1 or 1:many (though should be 1:1 or 1:0)
-                // If 1:Many (array), take first. If 1:1 (object), take it.
-                // Supabase returns object for single relation if defined as such, but usually array unless specified?
-                // Actually, standard select returns array for child tables unless "single()" is used or relationship is 1:1 unique.
-                // FK is not unique on child side usually? Wait. loan_id is unique in loan_balances? 
-                // We checked data, it is unique. But supabase might return array.
+                // Handle 1:1 relationship - loan_balances should be an object or array with one item
                 const balanceData = Array.isArray(balance) ? (balance[0] || {}) : balance;
-                const clientData = loan.clients || {}; // Alias was 'clients' (table name)
+                const clientData = loan.clients || {};
 
                 return {
                     ...loan,

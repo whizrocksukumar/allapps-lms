@@ -321,7 +321,7 @@ export default function Loans() {
                   <td>${loan.loan_amount?.toFixed(2)}</td>
                   <td>${loan.current_outstanding_balance?.toFixed(2) || '0.00'}</td>
                   <td>{loan.annual_interest_rate}%</td>
-                  <td>{loan.instalments_due} {loan.term === 'Weekly' ? 'wks' : loan.term === 'Fortnightly' ? 'fn' : 'mths'}</td>
+                  <td>{loan.instalments_due} {loan.repayment_frequency === 'Weekly' ? 'wks' : loan.repayment_frequency === 'Fortnightly' ? 'fn' : 'mths'}</td>
                   <td>
                     <span className={`status-badge ${loan.status?.toLowerCase().replace(' ', '-') || ''}`}>
                       {loan.status}

@@ -15,7 +15,7 @@ export default function Sidebar({ collapsed, setCollapsed, userRole = 'staff' })
       label: 'Clients',
       icon: '👥',
       children: [
-        { key: '/clients/new', label: 'Add New Client', icon: '➕' },
+       // { key: '/clients/new', label: 'Add New Client', icon: '➕' },
       ],
     },
     {
@@ -23,11 +23,12 @@ export default function Sidebar({ collapsed, setCollapsed, userRole = 'staff' })
       label: 'Loans',
       icon: '💰',
       children: [
-        { key: '/loans/new', label: 'Add New Loan', icon: '➕' },
+        // { key: '/loans/new', label: 'Add New Loan', icon: '➕' },
         { key: '/loans/transactions', label: 'Transactions', icon: '📊' },
-        { key: '/loans/repayment-schedule', label: 'Repayment Schedule', icon: '📅' },
-        { key: '/loans/actual-repayments', label: 'Actual Repayments', icon: '✅' },
-        { key: '/loans/products', label: 'Add New Product', icon: '➕' },
+        // { key: '/loans/repayment-schedule', label: 'Repayment Schedule', icon: '📅' },
+        // { key: '/loans/actual-repayments', label: 'Actual Repayments', icon: '✅' },
+        { key: '/loans/agreement', label: 'Loan Agreement', icon: '📄' },
+        // { key: '/loans/products', label: 'Add New Product', icon: '➕' },
       ],
     },
     {

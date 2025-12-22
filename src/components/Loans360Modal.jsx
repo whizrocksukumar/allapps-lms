@@ -1,13 +1,16 @@
 // src/components/Loans360Modal.jsx
+// FIXED: 22-DEC-2025 - Correct column names (payment_number, scheduled_amount, principal_portion, interest_portion)
+// Added: Actual Repayments tab, Changed "Days Remaining" to "Instalments Remaining"
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseService';
-import { formatDate } from '../utils/dateFormatter';
+import { formatDate, getTransactionTypeName, exportTransactionsToCSV, exportScheduleToCSV } from '../utils/transactionHelpers';
 import StatementView from './StatementView';
 
 export default function Loans360Modal({ loan: initialLoan, onClose }) {
   const [loan, setLoan] = useState(null);
-  const [installments, setInstallments] = useState([]);
+  const [schedule, setSchedule] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [loanBalance, setLoanBalance] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [showStatement, setShowStatement] = useState(false);
@@ -20,25 +23,39 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
 
   const fetchFullLoanData = async () => {
     try {
-      // 1. Fetch Loan Details
-      const { data: loanData } = await supabase
+      setLoading(true);
+      
+      // 1. Fetch Loan Details with client info
+      const { data: loanData, error: loanError } = await supabase
         .from('loans')
         .select(`
           *,
-          loan_products (name, interest_type),
-          clients (first_name, last_name, client_code)
+          clients (id, first_name, last_name, client_code, email, mobile_phone, address, city)
         `)
         .eq('id', initialLoan.id)
         .single();
 
-      // 2. Fetch Repayment Schedule
-      const { data: schedule } = await supabase
+      if (loanError) {
+        console.error('Loan fetch error:', loanError);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Fetch Loan Balance (source of truth)
+      const { data: balanceData } = await supabase
+        .from('loan_balances')
+        .select('*')
+        .eq('loan_id', initialLoan.id)
+        .single();
+
+      // 3. Fetch Repayment Schedule (CORRECT COLUMN NAMES)
+      const { data: scheduleData } = await supabase
         .from('repayment_schedule')
         .select('*')
         .eq('loan_id', initialLoan.id)
-        .order('due_date', { ascending: true });
+        .order('payment_number', { ascending: true });
 
-      // 3. Fetch Transactions
+      // 4. Fetch Transactions
       const { data: txns } = await supabase
         .from('transactions')
         .select('*')
@@ -46,7 +63,8 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
         .order('txn_date', { ascending: false });
 
       setLoan(loanData);
-      setInstallments(schedule || []);
+      setLoanBalance(balanceData);
+      setSchedule(scheduleData || []);
       setTransactions(txns || []);
     } catch (error) {
       console.error('Loan360 error:', error);
@@ -55,51 +73,36 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
     }
   };
 
-  const calculateDaysToGo = () => {
-    if (!loan?.end_date) return 'N/A';
-    const diff = new Date(loan.end_date) - new Date();
-    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    return days > 0 ? days : 0;
+  const instalmentsRemaining = () => {
+    return schedule.filter(i => i.status === 'pending').length;
   };
 
-  const installmentsRemaining = () => {
-    return installments.filter(i => new Date(i.due_date) >= new Date()).length;
+  const formatTerm = (term, frequency) => {
+    if (!term || !frequency) return 'N/A';
+    const unit = frequency === 'Weekly' ? 'Weeks' :
+                 frequency === 'Fortnightly' ? 'Fortnights' : 'Months';
+    return `${term} ${unit}`;
   };
 
-  const exportScheduleCSV = () => {
-    const headers = ['Due Date', 'Amount', 'Principal', 'Interest', 'Fees', 'Status'];
-    const rows = installments.map(i => [
-      formatDate(i.due_date),
-      i.scheduled_amount?.toFixed(2) || i.amount?.toFixed(2),
-      i.principal_portion?.toFixed(2),
-      i.interest_portion?.toFixed(2),
-      i.fee_portion?.toFixed(2) || '0.00',
-      i.status
-    ]);
-    downloadCSV(headers, rows, `Loan_${loan.loan_number}_Schedule.csv`);
+  const handleExportScheduleCSV = () => {
+    if (loan && schedule.length > 0) {
+      // Transform schedule data to match export format
+      const exportData = schedule.map(s => ({
+        instalment_number: s.payment_number,
+        due_date: s.due_date,
+        principal_amount: s.principal_portion,
+        interest_amount: s.interest_portion,
+        total_amount: s.scheduled_amount,
+        status: s.status
+      }));
+      exportScheduleToCSV(loan, exportData, `Loan_${loan.loan_number}_Schedule.csv`);
+    }
   };
 
-  const exportTransactionsCSV = () => {
-    const headers = ['Date', 'Type', 'Amount', 'Source', 'Status', 'Notes'];
-    const rows = transactions.map(t => [
-      formatDate(t.txn_date),
-      t.txn_type,
-      t.amount?.toFixed(2),
-      t.source,
-      t.processing_status,
-      t.notes || ''
-    ]);
-    downloadCSV(headers, rows, `Loan_${loan.loan_number}_Transactions.csv`);
-  };
-
-  const downloadCSV = (headers, rows, filename) => {
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
+  const handleExportTransactionsCSV = () => {
+    if (loan && transactions.length > 0) {
+      exportTransactionsToCSV(loan, transactions, `Loan_${loan.loan_number}_Transactions.csv`);
+    }
   };
 
   if (showStatement) {
@@ -108,9 +111,13 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
 
   if (!initialLoan) return null;
 
+  const client = Array.isArray(loan?.clients) ? loan.clients[0] : loan?.clients;
+
+  // Filter actual repayments (paid ones only)
+  const actualRepayments = schedule.filter(s => s.paid_date !== null);
+
   return (
     <div style={overlayStyle} onMouseDown={(e) => {
-      // Only close if clicking directly on the overlay, not modal content
       if (e.target === e.currentTarget) {
         onClose();
       }
@@ -121,7 +128,7 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
         <div style={headerStyle}>
           <div>
             <h2 style={titleStyle}>Loan Details</h2>
-            <div style={subTitleStyle}>{loan?.loan_number || 'Loading...'} • <span style={{ color: '#fff', opacity: 0.9 }}>{loan?.clients?.first_name} {loan?.clients?.last_name}</span></div>
+            <div style={subTitleStyle}>{loan?.loan_number || 'Loading...'} • <span style={{ color: '#fff', opacity: 0.9 }}>{client?.first_name} {client?.last_name}</span></div>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <button onClick={() => setShowStatement(true)} style={actionBtnStyle}>Print Statement</button>
@@ -133,6 +140,7 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
         <div style={tabContainerStyle}>
           <button style={activeTab === 'overview' ? activeTabStyle : tabStyle} onClick={() => setActiveTab('overview')}>Overview</button>
           <button style={activeTab === 'schedule' ? activeTabStyle : tabStyle} onClick={() => setActiveTab('schedule')}>Repayment Schedule</button>
+          <button style={activeTab === 'actual' ? activeTabStyle : tabStyle} onClick={() => setActiveTab('actual')}>Actual Repayments</button>
           <button style={activeTab === 'transactions' ? activeTabStyle : tabStyle} onClick={() => setActiveTab('transactions')}>Transactions</button>
         </div>
 
@@ -141,72 +149,119 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
 
             {/* OVERVIEW TAB */}
             {activeTab === 'overview' && (
-              <div style={cardGridStyle}>
-                {/* Card 1: Loan Info */}
-                <div style={cardStyle}>
-                  <h3 style={cardTitleStyle}>Loan Information</h3>
-                  <div style={infoGridStyle}>
-                    <InfoItem label="Product" value={loan?.loan_products?.name || 'Standard Loan'} />
-                    <InfoItem label="Interest Rate" value={`${loan?.annual_interest_rate || loan?.loan_products?.interest_rate || 0}%`} />
-                    <InfoItem label="Term" value={`${loan?.instalments_due || 0} (${loan?.term || ''})`} />
-                    <InfoItem label="Frequency" value={loan?.term || 'Monthly'} capitalize />
-                    <InfoItem label="Start Date" value={formatDate(loan?.start_date)} />
-                    <InfoItem label="Maturity Date" value={formatDate(loan?.end_date)} />
-                  </div>
+              <div style={topSectionStyle}>
+                
+                {/* LEFT CARD: Loan Information */}
+                <div style={{ flex: 1, paddingRight: '2rem', borderRight: '1px solid #eee' }}>
+                  <h4 style={sectionTitleStyle}>Loan Information</h4>
+                  <InfoRow label="Loan Number" value={loan?.loan_number} />
+                  <InfoRow label="Client Code" value={client?.client_code} />
+                  <div style={dividerStyle}></div>
+                  <InfoRow label="Interest Rate" value={loan?.annual_interest_rate ? `${loan.annual_interest_rate}%` : 'N/A'} />
+                  <InfoRow label="Term" value={formatTerm(loan?.term, loan?.repayment_frequency)} />
+                  <InfoRow label="Frequency" value={loan?.repayment_frequency} />
+                  <div style={dividerStyle}></div>
+                  <InfoRow label="Start Date" value={formatDate(loan?.start_date)} />
+                  <InfoRow label="End Date" value={formatDate(loan?.end_date)} />
+                  <InfoRow label="Instalments Remaining" value={instalmentsRemaining()} />
+                  <div style={dividerStyle}></div>
+                  <InfoRow label="Establishment Fee" value={`$${loan?.establishment_fee?.toFixed(2) || '0.00'}`} />
+                  <InfoRow label="Status" value={<StatusBadge status={loan?.status} />} />
                 </div>
 
-                {/* Card 2: Financial Status */}
-                <div style={cardStyle}>
-                  <h3 style={cardTitleStyle}>Financial Status</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>
-                      <span style={{ color: '#666' }}>Current Balance</span>
-                      <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0176d3' }}>${loan?.current_balance?.toFixed(2) || '0.00'}</span>
-                    </div>
-                    <div style={infoGridStyle}>
-                      <InfoItem label="Original Amount" value={`$${loan?.loan_amount?.toFixed(2)}`} />
-                      <InfoItem label="Installments Left" value={`${installmentsRemaining()} / ${installments.length}`} />
-                      <InfoItem label="Days Remaining" value={calculateDaysToGo()} />
-                      <InfoItem label="Status" value={loan?.status} badge />
+                {/* RIGHT CARD: Balance & Status */}
+                <div style={{ flex: 1, paddingLeft: '2rem' }}>
+                  <h4 style={sectionTitleStyle}>Balance & Status</h4>
+                  
+                  <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f0f8ff', borderRadius: '8px', textAlign: 'center' }}>
+                    <span style={{ color: '#666', fontSize: '0.9rem' }}>Current Balance</span>
+                    <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#0176d3', marginTop: '0.5rem' }}>
+                      ${loanBalance?.current_outstanding_balance?.toFixed(2) || '0.00'}
                     </div>
                   </div>
+                  
+                  <InfoRow label="Original Amount" value={`$${loan?.loan_amount?.toFixed(2)}`} />
+                  <InfoRow label="Principal Outstanding" value={`$${loanBalance?.outstanding_principal?.toFixed(2) || '0.00'}`} />
+                  <InfoRow label="Interest Outstanding" value={`$${loanBalance?.outstanding_interest?.toFixed(2) || '0.00'}`} />
+                  <InfoRow label="Unpaid Fees" value={`$${loanBalance?.unpaid_fees?.toFixed(2) || '0.00'}`} />
+                  <div style={dividerStyle}></div>
+                  <InfoRow label="Instalments Left" value={`${instalmentsRemaining()} / ${schedule.length}`} />
                 </div>
               </div>
             )}
 
-            {/* SCHEDULE TAB */}
+            {/* REPAYMENT SCHEDULE TAB */}
             {activeTab === 'schedule' && (
               <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
                 <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ ...cardTitleStyle, marginBottom: 0 }}>Repayment Schedule</h3>
-                  <button onClick={exportScheduleCSV} style={{ ...actionBtnStyle, background: '#0176d3', color: '#fff' }}>Download CSV</button>
+                  <button onClick={handleExportScheduleCSV} style={{ ...actionBtnStyle, background: '#0176d3', color: '#fff' }}>Download CSV</button>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={tableStyle}>
                     <thead>
                       <tr style={tableHeaderRowStyle}>
-                        <th style={thStyle}>#</th>
+                        <th style={thStyle}>Instalment No.</th>
                         <th style={thStyle}>Due Date</th>
-                        <th style={thStyle}>Amount</th>
                         <th style={thStyle}>Principal</th>
                         <th style={thStyle}>Interest</th>
+                        <th style={thStyle}>Total Amount</th>
                         <th style={thStyle}>Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {installments.length > 0 ? installments.map((i, idx) => (
-                        <tr key={i.id || idx} style={{ borderBottom: idx === installments.length - 1 ? 'none' : '1px solid #f3f2f2' }}>
-                          <td style={tdStyle}>{i.payment_number}</td>
-                          <td style={tdStyle}>{formatDate(i.due_date)}</td>
-                          <td style={{ ...tdStyle, fontWeight: 500 }}>${(i.scheduled_amount || i.amount || 0).toFixed(2)}</td>
-                          <td style={tdStyle}>${(i.principal_portion || 0).toFixed(2)}</td>
-                          <td style={tdStyle}>${(i.interest_portion || 0).toFixed(2)}</td>
+                      {schedule.length > 0 ? schedule.map((s, idx) => (
+                        <tr key={s.id || idx} style={{ borderBottom: idx === schedule.length - 1 ? 'none' : '1px solid #f3f2f2' }}>
+                          <td style={tdStyle}>{s.payment_number}</td>
+                          <td style={tdStyle}>{formatDate(s.due_date)}</td>
+                          <td style={tdStyle}>${(s.principal_portion || 0).toFixed(2)}</td>
+                          <td style={tdStyle}>${(s.interest_portion || 0).toFixed(2)}</td>
+                          <td style={{ ...tdStyle, fontWeight: 500 }}>${(s.scheduled_amount || 0).toFixed(2)}</td>
                           <td style={tdStyle}>
-                            <StatusBadge status={i.status} />
+                            <StatusBadge status={s.status} />
                           </td>
                         </tr>
                       )) : (
                         <tr><td colSpan="6" style={{ ...tdStyle, textAlign: 'center', padding: '2rem' }}>No schedule generated.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* ACTUAL REPAYMENTS TAB (NEW) */}
+            {activeTab === 'actual' && (
+              <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ ...cardTitleStyle, marginBottom: 0 }}>Actual Repayments Made</h3>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr style={tableHeaderRowStyle}>
+                        <th style={thStyle}>Instalment No.</th>
+                        <th style={thStyle}>Due Date</th>
+                        <th style={thStyle}>Date Paid</th>
+                        <th style={thStyle}>Amount Due</th>
+                        <th style={thStyle}>Amount Paid</th>
+                        <th style={thStyle}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {actualRepayments.length > 0 ? actualRepayments.map((r, idx) => (
+                        <tr key={r.id || idx} style={{ borderBottom: idx === actualRepayments.length - 1 ? 'none' : '1px solid #f3f2f2' }}>
+                          <td style={tdStyle}>{r.payment_number}</td>
+                          <td style={tdStyle}>{formatDate(r.due_date)}</td>
+                          <td style={tdStyle}>{formatDate(r.paid_date)}</td>
+                          <td style={tdStyle}>${(r.scheduled_amount || 0).toFixed(2)}</td>
+                          <td style={{ ...tdStyle, fontWeight: 500, color: '#2e7d32' }}>${(r.paid_amount || 0).toFixed(2)}</td>
+                          <td style={tdStyle}>
+                            <StatusBadge status={r.status} />
+                          </td>
+                        </tr>
+                      )) : (
+                        <tr><td colSpan="6" style={{ ...tdStyle, textAlign: 'center', padding: '2rem' }}>No payments made yet.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -219,7 +274,7 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
               <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
                 <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ ...cardTitleStyle, marginBottom: 0 }}>Transaction History</h3>
-                  <button onClick={exportTransactionsCSV} style={{ ...actionBtnStyle, background: '#0176d3', color: '#fff' }}>Download CSV</button>
+                  <button onClick={handleExportTransactionsCSV} style={{ ...actionBtnStyle, background: '#0176d3', color: '#fff' }}>Download CSV</button>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={tableStyle}>
@@ -237,9 +292,9 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
                       {transactions.length > 0 ? transactions.map((t, idx) => (
                         <tr key={t.id || idx} style={{ borderBottom: idx === transactions.length - 1 ? 'none' : '1px solid #f3f2f2' }}>
                           <td style={tdStyle}>{formatDate(t.txn_date)}</td>
-                          <td style={tdStyle}><span style={{ fontWeight: 600 }}>{t.txn_type}</span></td>
-                          <td style={{ ...tdStyle, fontWeight: 500, color: t.txn_type === 'PAYMENT' ? 'green' : '#333' }}>
-                            {t.txn_type === 'PAYMENT' ? '-' : ''}${t.amount?.toFixed(2)}
+                          <td style={tdStyle}><span style={{ fontWeight: 600 }}>{getTransactionTypeName(t.txn_type)}</span></td>
+                          <td style={{ ...tdStyle, fontWeight: 500, color: t.txn_type === 'PAY' ? 'green' : '#333' }}>
+                            {t.txn_type === 'PAY' ? '-' : ''}${t.amount?.toFixed(2)}
                           </td>
                           <td style={tdStyle}>{t.source}</td>
                           <td style={tdStyle}>
@@ -265,17 +320,11 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
   );
 }
 
-// Sub-components
-const InfoItem = ({ label, value, capitalize, badge }) => (
-  <div style={{ marginBottom: '0.5rem' }}>
-    <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.2rem' }}>{label}</div>
-    {badge ? (
-      <StatusBadge status={value} />
-    ) : (
-      <div style={{ fontSize: '1rem', color: '#2b2b2b', fontWeight: 500, textTransform: capitalize ? 'capitalize' : 'none' }}>
-        {value || '-'}
-      </div>
-    )}
+// Helper Components
+const InfoRow = ({ label, value }) => (
+  <div style={{ marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+    <span style={{ color: '#666', fontSize: '0.9rem' }}>{label}:</span>
+    <span style={{ fontWeight: 500, fontSize: '0.9rem', textAlign: 'right' }}>{value || '-'}</span>
   </div>
 );
 
@@ -286,7 +335,7 @@ const StatusBadge = ({ status }) => {
 
   if (s === 'active' || s === 'paid' || s === 'current') { bg = '#cdfbc8'; color = '#1e7e34'; }
   else if (s === 'pending') { bg = '#fff3cd'; color = '#856404'; }
-  else if (s === 'overdue' || s === 'written off' || s === 'late') { bg = '#f8d7da'; color = '#721c24'; }
+  else if (s === 'overdue' || s === 'consolidated' || s === 'written off' || s === 'late') { bg = '#f8d7da'; color = '#721c24'; }
 
   return (
     <span style={{ background: bg, color: color, padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -309,10 +358,12 @@ const tabContainerStyle = { display: 'flex', background: '#fff', padding: '0 2re
 const tabStyle = { background: 'none', border: 'none', borderBottom: '2px solid transparent', padding: '1rem 1.5rem', fontSize: '0.95rem', fontWeight: 500, color: '#666', cursor: 'pointer' };
 const activeTabStyle = { ...tabStyle, color: '#0176d3', borderBottom: '2px solid #0176d3' };
 
-const cardGridStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' };
+const topSectionStyle = { display: 'flex', background: '#fff', padding: '2rem', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', gap: '2rem' };
+const sectionTitleStyle = { color: '#0176d3', borderBottom: '2px solid #0176d3', paddingBottom: '0.5rem', marginBottom: '1rem', marginTop: 0 };
+const dividerStyle = { height: '1px', background: '#eee', margin: '1rem 0' };
+
 const cardStyle = { background: '#fff', borderRadius: '8px', padding: '1.5rem', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', border: '1px solid #e1e4e8' };
 const cardTitleStyle = { margin: '0 0 1.25rem 0', fontSize: '1.1rem', color: '#0176d3', fontWeight: 600 };
-const infoGridStyle = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' };
 
 const tableStyle = { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' };
 const tableHeaderRowStyle = { background: '#f8f9fa', borderBottom: '2px solid #e9ecef' };

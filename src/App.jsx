@@ -6,6 +6,7 @@ import Navbar from './components/Navbar';
 import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
 import Loans from './pages/Loans';
+import LoanAgreement from './pages/LoanAgreement';  
 import PaymentEntry from './pages/PaymentEntry';
 import FeeManagementPage from './pages/FeeManagementPage';
 import LoanWaiversDashboard from './pages/LoanWaiversDashboard';
@@ -39,6 +40,7 @@ export default function App() {
             <Route path="/loans/transactions" element={<Transactions />} />
             <Route path="/loans/repayment-schedule" element={<RepaymentSchedule />} />
             <Route path="/loans/actual-repayments" element={<ActualRepayments />} />
+            <Route path="/loans/agreement" element={<LoanAgreement />} />
             <Route path="/payment-entry" element={<PaymentEntry />} />
             <Route path="/fees" element={<FeeManagementPage />} />
             <Route path="/admin/dashboard" element={<Dashboard />} />
