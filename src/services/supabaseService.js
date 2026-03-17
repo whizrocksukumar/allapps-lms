@@ -243,8 +243,8 @@ export const addRepayment = async (repaymentData) => {
         interest: interestPaid,
         principal: principalPaid
       },
-      balance_after_transaction: (balanceData.current_outstanding_balance - paymentAmount),
-      balance: (balanceData.current_outstanding_balance - paymentAmount),
+      balance_after_transaction: (balanceData.total_outstanding_balance - paymentAmount),
+      balance: (balanceData.total_outstanding_balance - paymentAmount),
       reference_number: reference,
       payment_method: 'manual_entry',
       source: 'manual_entry',
@@ -272,7 +272,7 @@ export const addRepayment = async (repaymentData) => {
         unpaid_fees: newFees,
         outstanding_interest: newInterest,
         outstanding_principal: newPrincipal,
-        current_outstanding_balance: newTotal,
+        total_outstanding_balance: newTotal,
         last_payment_date: date,
         updated_at: new Date().toISOString()
       })

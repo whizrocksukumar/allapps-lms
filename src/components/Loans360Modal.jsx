@@ -113,8 +113,10 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
 
   const client = Array.isArray(loan?.clients) ? loan.clients[0] : loan?.clients;
 
-  // Filter actual repayments (paid ones only)
-  const actualRepayments = schedule.filter(s => s.paid_date !== null);
+  // Filter actual repayments from transactions table (PAY type transactions)
+  const actualRepayments = transactions.filter(t =>
+    t.txn_type === 'PAY' || t.transaction_type === 'payment' || t.transaction_type === 'PAY'
+  );
 
   return (
     <div style={overlayStyle} onMouseDown={(e) => {
@@ -240,28 +242,32 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
                   <table style={tableStyle}>
                     <thead>
                       <tr style={tableHeaderRowStyle}>
-                        <th style={thStyle}>Instalment No.</th>
-                        <th style={thStyle}>Due Date</th>
                         <th style={thStyle}>Date Paid</th>
-                        <th style={thStyle}>Amount Due</th>
                         <th style={thStyle}>Amount Paid</th>
+                        <th style={thStyle}>Principal</th>
+                        <th style={thStyle}>Interest</th>
+                        <th style={thStyle}>Fees</th>
+                        <th style={thStyle}>Reference</th>
                         <th style={thStyle}>Status</th>
                       </tr>
                     </thead>
                     <tbody>
                       {actualRepayments.length > 0 ? actualRepayments.map((r, idx) => (
                         <tr key={r.id || idx} style={{ borderBottom: idx === actualRepayments.length - 1 ? 'none' : '1px solid #f3f2f2' }}>
-                          <td style={tdStyle}>{r.payment_number}</td>
-                          <td style={tdStyle}>{formatDate(r.due_date)}</td>
-                          <td style={tdStyle}>{formatDate(r.paid_date)}</td>
-                          <td style={tdStyle}>${(r.scheduled_amount || 0).toFixed(2)}</td>
-                          <td style={{ ...tdStyle, fontWeight: 500, color: '#2e7d32' }}>${(r.paid_amount || 0).toFixed(2)}</td>
+                          <td style={tdStyle}>{formatDate(r.txn_date)}</td>
+                          <td style={{ ...tdStyle, fontWeight: 500, color: '#2e7d32' }}>${(r.amount || 0).toFixed(2)}</td>
+                          <td style={tdStyle}>${(r.principal_applied || 0).toFixed(2)}</td>
+                          <td style={tdStyle}>${(r.interest_applied || 0).toFixed(2)}</td>
+                          <td style={tdStyle}>${(r.fees_applied || 0).toFixed(2)}</td>
+                          <td style={{ ...tdStyle, fontSize: '0.85rem', color: '#666' }}>{r.reference_number || r.notes || '-'}</td>
                           <td style={tdStyle}>
-                            <StatusBadge status={r.status} />
+                            <span style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '4px', background: r.processing_status === 'processed' ? '#e6fffa' : '#fff5f5', color: r.processing_status === 'processed' ? '#2c7a7b' : '#c53030' }}>
+                              {r.processing_status}
+                            </span>
                           </td>
                         </tr>
                       )) : (
-                        <tr><td colSpan="6" style={{ ...tdStyle, textAlign: 'center', padding: '2rem' }}>No payments made yet.</td></tr>
+                        <tr><td colSpan="7" style={{ ...tdStyle, textAlign: 'center', padding: '2rem' }}>No payments made yet.</td></tr>
                       )}
                     </tbody>
                   </table>

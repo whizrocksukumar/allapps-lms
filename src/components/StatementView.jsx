@@ -129,11 +129,14 @@ export default function StatementView({ loan, transactions, onClose }) {
                                                 <td style={td}>{getTransactionTypeName(txnType)}</td>
                                                 <td style={td}>
                                                     {t.notes || t.description || '-'}
-                                                    {t.allocation_breakdown && (
-                                                        <div style={smallAlloc}>
-                                                            (Prin: ${t.allocation_breakdown.principal?.toFixed(2)} | Int: ${t.allocation_breakdown.interest?.toFixed(2)} | Fees: ${t.allocation_breakdown.fees?.toFixed(2)})
-                                                        </div>
-                                                    )}
+                                                   {t.allocation_breakdown && (
+                                                    <div style={smallAlloc}>
+                                                        (Prin: ${formatCurrency(t.allocation_breakdown.principal || 0)} | 
+                                                        Int: ${formatCurrency(t.allocation_breakdown.interest || 0)} | 
+                                                        Fees: ${formatCurrency(t.allocation_breakdown.fees || 0)})
+                                                    </div>
+)}
+
                                                 </td>
                                                 <td style={tdAlignRight}>{!isCredit ? `$${parseFloat(t.amount).toFixed(2)}` : ''}</td>
                                                 <td style={tdAlignRight}>{isCredit ? `$${parseFloat(t.amount).toFixed(2)}` : ''}</td>

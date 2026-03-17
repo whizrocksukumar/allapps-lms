@@ -9,7 +9,6 @@ import NewLoanModal from '../components/NewLoanModal';
 export default function Loans() {
   const { loans, loading, error, refetch } = useLoans();
   const [filteredLoans, setFilteredLoans] = useState([]);
-  const [products, setProducts] = useState([]);
   const [clients, setClients] = useState([]);
 
   // Modals
@@ -31,9 +30,8 @@ export default function Loans() {
   const [pageSize, setPageSize] = useState(20);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Load products and clients on mount
+  // Load clients on mount
   useEffect(() => {
-    fetchProducts();
     fetchClients();
   }, []);
 
@@ -41,21 +39,6 @@ export default function Loans() {
   useEffect(() => {
     filterAndSortLoans();
   }, [loans, search, statusFilter, sortBy, sortOrder, currentPage, pageSize]);
-
-  const fetchProducts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('loan_products')
-        .select('id, product_name, annual_interest_rate')
-        .eq('status', 'active')
-        .order('product_name');
-
-      if (error) throw error;
-      setProducts(data || []);
-    } catch (err) {
-      console.error('Error fetching products:', err);
-    }
-  };
 
   const fetchClients = async () => {
     try {
@@ -392,16 +375,18 @@ export default function Loans() {
 
       {/* New Loan Modal */}
       {showNewLoan && (
-        <NewLoanModal
-          onClose={() => {
-            setShowNewLoan(false);
-            setSelectedLoanForEdit(null);
-          }}
-          reloadLoans={refetch}
-          initialLoan={selectedLoanForEdit}
-          initialMode={selectedLoanForEdit ? 'consolidation' : 'new'}
-        />
-      )}
+  <NewLoanModal
+    isOpen={showNewLoan}
+    onClose={() => {
+      setShowNewLoan(false);
+      setSelectedLoanForEdit(null);
+    }}
+    reloadLoans={refetch}
+    initialLoan={selectedLoanForEdit}
+    initialMode={selectedLoanForEdit ? 'refinance' : 'new'}
+  />
+)}
+
 
       {showClient360 && (
         <Client360Modal
