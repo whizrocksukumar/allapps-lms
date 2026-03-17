@@ -65,18 +65,17 @@ export default function Transactions() {
     } else {
       // Fallback: create CSV without loan details header
       let csv = 'TRANSACTIONS\n';
-      csv += 'Date,Loan No.,Client,Type,Amount,Reference,Notes\n';
-      
+      csv += 'Date,Loan No.,Client,Type,Amount,Notes\n';
+
       filteredTransactions.forEach(t => {
         const date = formatDate(t.txn_date);
         const loanNo = t.loans?.loan_number || 'N/A';
         const client = `${t.loans?.clients?.first_name || ''} ${t.loans?.clients?.last_name || ''}`.trim() || 'N/A';
         const type = getTransactionTypeName(t.txn_type);
         const amount = `$${parseFloat(t.amount).toFixed(2)}`;
-        const reference = t.reference_number || '';
         const notes = (t.notes || '').replace(/,/g, ';');
-        
-        csv += `${date},${loanNo},${client},${type},${amount},${reference},"${notes}"\n`;
+
+        csv += `${date},${loanNo},${client},${type},${amount},"${notes}"\n`;
       });
       
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -121,7 +120,8 @@ export default function Transactions() {
   const styles = {
     container: {
       backgroundColor: '#f8f9fa',
-      padding: '2rem',
+      padding: '1rem',
+      borderTop: '4px solid #0176d3',
     },
     card: {
       backgroundColor: '#fff',
@@ -154,10 +154,11 @@ export default function Transactions() {
       transition: 'background 0.2s',
     },
     controlsContainer: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+      display: 'flex',
       gap: '1rem',
       marginBottom: '1.5rem',
+      flexWrap: 'wrap',
+      alignItems: 'center',
     },
     input: {
       padding: '0.75rem',
@@ -310,12 +311,12 @@ export default function Transactions() {
             placeholder="Search by loan, client, or notes..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={styles.input}
+            style={{ ...styles.input, maxWidth: '300px', flex: '0 0 300px' }}
           />
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            style={styles.select}
+            style={{ ...styles.select, flex: '0 0 auto' }}
           >
             <option value="all">All Types</option>
             <option value="PAY">Payment</option>
@@ -331,16 +332,41 @@ export default function Transactions() {
             type="date"
             value={fromDate}
             onChange={(e) => setFromDate(e.target.value)}
-            style={styles.input}
+            style={{ ...styles.input, flex: '0 0 auto' }}
             placeholder="From Date"
           />
           <input
             type="date"
             value={toDate}
             onChange={(e) => setToDate(e.target.value)}
-            style={styles.input}
+            style={{ ...styles.input, flex: '0 0 auto' }}
             placeholder="To Date"
           />
+        </div>
+
+        {/* Summary Bar */}
+        <div style={{
+          display: 'flex',
+          gap: '2rem',
+          padding: '1rem 1.5rem',
+          background: '#f0f8ff',
+          borderRadius: '8px',
+          marginBottom: '1.5rem',
+          border: '1px solid #0176d3'
+        }}>
+          <div>
+            <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.25rem' }}>Total Transactions</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#181818' }}>{filteredTransactions.length}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.25rem' }}>Total Amount Collected</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#2e7d32' }}>
+              ${filteredTransactions
+                .filter(t => t.txn_type === 'PAY')
+                .reduce((sum, t) => sum + Math.abs(t.amount), 0)
+                .toFixed(2)}
+            </div>
+          </div>
         </div>
 
         {/* Rows per page selector */}
@@ -375,7 +401,6 @@ export default function Transactions() {
                     <th style={styles.th}>Client</th>
                     <th style={styles.th}>Type</th>
                     <th style={styles.th}>Amount</th>
-                    <th style={styles.th}>Reference</th>
                     <th style={styles.th}>Notes</th>
                   </tr>
                 </thead>
@@ -424,10 +449,7 @@ export default function Transactions() {
                             ${Math.abs(t.amount).toFixed(2)}
                           </span>
                         </td>
-                        <td style={styles.td}>
-                          {t.reference_number || '-'}
-                        </td>
-                        <td style={{ ...styles.td, maxWidth: '200px', fontSize: '0.85rem', color: '#666' }}>
+                        <td style={{ ...styles.td, maxWidth: '250px', fontSize: '0.85rem', color: '#666' }}>
                           {t.notes || '-'}
                         </td>
                       </tr>

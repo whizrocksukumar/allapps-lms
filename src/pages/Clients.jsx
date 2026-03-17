@@ -304,32 +304,33 @@ const Clients = () => {
   };
 
   return (
-    <div className="clients-page">
+    <div className="clients-page" style={{ borderTop: '4px solid #0176d3' }}>
       <PageHeader
-        title="Contacts"
-        subtitle="Manage your customer contacts"
+        title="Clients"
+        subtitle="Manage your loan clients"
         actions={
           <button className="btn-primary" onClick={() => setShowNew(true)}>
-            + New Contact
+            + New Client
           </button>
         }
       />
 
       {/* Controls */}
-      <div className="clients-controls">
-        <div className="clients-search">
+      <div className="clients-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
+        <div className="clients-search" style={{ maxWidth: '300px', flex: '0 0 300px' }}>
           <input
             type="text"
-            placeholder="Search contacts..."
+            placeholder="Search clients..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
               setCurrentPage(1);
             }}
+            style={{ width: '100%' }}
           />
         </div>
-        <div className="clients-filters">
-          <div className="status-filter-group">
+        <div className="clients-filters" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+          <div className="status-filter-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span className="status-label">Status:</span>
             {['All', 'Active', 'Inactive'].map(s => (
               <button
@@ -345,7 +346,7 @@ const Clients = () => {
             ))}
           </div>
 
-          <div className="export-group">
+          <div className="export-group" style={{ display: 'flex', gap: '0.5rem', marginLeft: 'auto' }}>
             <button className="filter-btn" onClick={() => handleExport('csv')}>
               Export CSV
             </button>
@@ -359,7 +360,7 @@ const Clients = () => {
       {/* Table */}
       <div className="table-container">
         <div className="table-stats">
-          Showing {filteredClients.length} of {totalCount} contacts
+          Showing {filteredClients.length} of {totalCount} clients
           {totalCount > pageSize && ` (Page ${currentPage} of ${totalPages})`}
         </div>
 
@@ -372,13 +373,7 @@ const Clients = () => {
                 onClick={() => handleSort('first_name')}
                 style={{ cursor: 'pointer' }}
               >
-                Contact Name{getSortIcon('first_name')}
-              </th>
-              <th
-                onClick={() => handleSort('company_name')}
-                style={{ cursor: 'pointer' }}
-              >
-                Company Name{getSortIcon('company_name')}
+                Client Name{getSortIcon('first_name')}
               </th>
               <th>Address</th>
               <th
@@ -411,9 +406,9 @@ const Clients = () => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="11" className="loading-state">Loading...</td></tr>
+              <tr><td colSpan="10" className="loading-state">Loading...</td></tr>
             ) : filteredClients.length === 0 ? (
-              <tr><td colSpan="11" className="empty-state">No contacts found.</td></tr>
+              <tr><td colSpan="10" className="empty-state">No clients found.</td></tr>
             ) : (
               filteredClients.map(client => {
                 const primaryLoan = getPrimaryLoan(client.id);
@@ -442,7 +437,6 @@ const Clients = () => {
                     >
                       {client.first_name} {client.last_name}
                     </td>
-                    <td>{client.company_name || '-'}</td>
                     <td>{client.address || '-'}</td>
                     <td>{client.region || '-'}</td>
                     <td>{client.phone || '-'}</td>
