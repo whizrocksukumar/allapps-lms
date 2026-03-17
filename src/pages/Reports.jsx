@@ -52,7 +52,7 @@ const Reports = () => {
           *,
           clients (id, first_name, last_name, client_code),
           loan_balances (
-            total_outstanding_balance,
+            current_outstanding_balance,
             outstanding_principal,
             outstanding_interest,
             unpaid_fees
@@ -83,7 +83,7 @@ const Reports = () => {
 
         console.log('Loan balance for', loan.loan_number, ':', balance);
 
-        const outstanding = balance?.total_outstanding_balance || 0;
+        const outstanding = balance?.current_outstanding_balance || 0;
         const principal = balance?.outstanding_principal || 0;
         const interest = balance?.outstanding_interest || 0;
         const fees = balance?.unpaid_fees || 0;
@@ -129,7 +129,7 @@ const Reports = () => {
         .select(`
           *,
           clients (id, first_name, last_name, client_code),
-          loan_balances (total_outstanding_balance)
+          loan_balances (current_outstanding_balance)
         `)
         .ilike('status', 'active')
         .lt('next_payment_due_date', today)
@@ -153,7 +153,7 @@ const Reports = () => {
         return {
           ...loan,
           client_name: client ? `${client.first_name} ${client.last_name}` : 'Unknown',
-          outstanding_balance: balance?.total_outstanding_balance || 0,
+          outstanding_balance: balance?.current_outstanding_balance || 0,
           days_overdue: daysOverdue
         };
       });
