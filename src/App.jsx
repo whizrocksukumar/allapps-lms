@@ -17,6 +17,7 @@ import Expenses from './pages/Expenses';
 import ProfitAndLoss from './pages/ProfitAndLoss';
 import ComplianceAuditControls from './pages/ComplianceAuditControls';
 import AccountingFinancialReporting from './pages/AccountingFinancialReporting';
+import Reports from './pages/Reports';
 
 export default function App() {
   const [collapsed, setCollapsed] = useState(false);
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="/loans/agreement" element={<LoanAgreement />} />
             <Route path="/payment-entry" element={<PaymentEntry />} />
             <Route path="/fees" element={<FeeManagementPage />} />
+            <Route path="/reports" element={<Reports />} />
             <Route path="/admin/dashboard" element={<Dashboard />} />
             <Route path="/admin/waivers" element={<LoanWaiversDashboard />} />
             <Route path="/admin/expenses" element={<Expenses />} />

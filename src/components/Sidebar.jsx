@@ -46,11 +46,10 @@ export default function Sidebar({ collapsed, setCollapsed, userRole = 'staff' })
     children: [
       { key: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
       { key: '/admin/waivers', label: 'Loan Waivers', icon: '💼' },
-      { key: '/admin/fees', label: 'Fees Management', icon: '🧾' },
+      { key: '/fees', label: 'Fees Management', icon: '🧾' },
       { key: '/admin/expenses', label: 'Expenses', icon: '💸' },
-      { key: '/admin/pl', label: 'P&L', icon: '📈' },
-      { key: '/admin/compliance', label: 'Compliance, Audit, and Controls', icon: '📋' },
-      { key: '/admin/accounting', label: 'Accounting & Financial Reporting', icon: '💼' },
+      { key: '/reports', label: 'Reports', icon: '📊' },
+      // { key: '/admin/pl', label: 'P&L', icon: '📈' }, // Keep for later
     ],
   };
 
@@ -72,23 +71,26 @@ export default function Sidebar({ collapsed, setCollapsed, userRole = 'staff' })
         key={item.key}
         onClick={() => handleNavigation(item.key)}
         style={{
-          padding: isSubItem ? '0.5rem 1rem 0.5rem 2.5rem' : '0.75rem 1rem',
-          marginBottom: isSubItem ? '0.25rem' : '0.5rem',
+          padding: isSubItem ? '0.65rem 1rem 0.65rem 1.5rem' : '0.75rem 1rem',
+          marginBottom: isSubItem ? '0.3rem' : '0.5rem',
           cursor: 'pointer',
           backgroundColor: active ? '#0176d3' : 'transparent',
           color: active ? '#fff' : '#181818',
-          borderRadius: '4px',
+          borderRadius: '6px',
           textAlign: collapsed ? 'center' : 'left',
-          fontSize: isSubItem ? '0.85rem' : '0.9rem',
-          transition: 'background 0.2s',
+          fontSize: isSubItem ? '0.875rem' : '0.95rem',
+          transition: 'all 0.2s ease',
           display: 'flex',
           alignItems: 'center',
           gap: '0.75rem',
           fontWeight: isSubItem ? 400 : 500,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
         }}
         onMouseEnter={(e) => {
           if (!active) {
-            e.currentTarget.style.background = '#f0f0f0';
+            e.currentTarget.style.background = '#f5f5f5';
           }
         }}
         onMouseLeave={(e) => {
@@ -97,18 +99,18 @@ export default function Sidebar({ collapsed, setCollapsed, userRole = 'staff' })
           }
         }}
       >
-        <span>{item.icon}</span>
-        {!collapsed && item.label}
+        <span style={{ fontSize: isSubItem ? '1rem' : '1.1rem' }}>{item.icon}</span>
+        {!collapsed && <span style={{ flex: 1, minWidth: 0 }}>{item.label}</span>}
       </div>
     );
   };
 
   const renderMenuSection = (section) => {
     return (
-      <div key={section.key}>
+      <div key={section.key} style={{ marginBottom: '0.5rem' }}>
         {renderMenuItem(section)}
         {section.children && !collapsed && (
-          <div style={{ marginLeft: '0.5rem' }}>
+          <div style={{ marginTop: '0.25rem' }}>
             {section.children.map(child => renderMenuItem(child, true))}
           </div>
         )}
