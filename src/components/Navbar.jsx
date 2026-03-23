@@ -1,8 +1,16 @@
 // src/components/Navbar.jsx - CORRECTED
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../supabaseClient';
 
 export default function Navbar({ onToggle }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/login');
+  };
 
   return (
     <nav style={{
@@ -28,6 +36,21 @@ export default function Navbar({ onToggle }) {
           <div style={{ fontSize: '0.95rem', color: '#181818', fontWeight: '500' }}>User Name</div>
           <div style={{ fontSize: '0.8rem', color: '#706e6b' }}>Admin</div>
         </div>
+        <button
+          onClick={handleSignOut}
+          style={{
+            background: 'transparent',
+            border: '1px solid #ccc',
+            color: '#706e6b',
+            padding: '4px 12px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            marginLeft: '8px',
+            fontSize: '0.8rem',
+          }}
+        >
+          Sign Out
+        </button>
 
         <div
           style={{
