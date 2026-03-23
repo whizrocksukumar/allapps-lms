@@ -22,6 +22,7 @@ export default function Sidebar({ collapsed, setCollapsed, userRole = 'staff' })
       key: '/loans',
       label: 'Loans',
       icon: '💰',
+      navigable: true,
       children: [
         // { key: '/loans/new', label: 'Add New Loan', icon: '➕' },
         { key: '/loans/transactions', label: 'Transactions', icon: '📊' },
@@ -67,15 +68,15 @@ export default function Sidebar({ collapsed, setCollapsed, userRole = 'staff' })
 
   const renderMenuItem = (item, isSubItem = false) => {
     const active = isActive(item.key);
-    const isParentWithChildren = !isSubItem && item.children && item.children.length > 0;
+    const isParentWithChildren = !isSubItem && item.children && item.children.length > 0 && !item.navigable;
 
     return (
       <div
         key={item.key}
         onClick={() => { if (!isParentWithChildren) handleNavigation(item.key); }}
         style={{
-          padding: isSubItem ? '0.65rem 1rem 0.65rem 1.5rem' : '0.75rem 1rem',
-          marginBottom: isSubItem ? '0.3rem' : '0.25rem',
+          padding: isSubItem ? '0.4rem 1rem 0.4rem 1.5rem' : '0.4rem 1rem',
+          marginBottom: '0.1rem',
           cursor: isParentWithChildren ? 'default' : 'pointer',
           backgroundColor: active && !isParentWithChildren ? '#0176d3' : 'transparent',
           color: isParentWithChildren ? '#706e6b' : active ? '#fff' : '#181818',

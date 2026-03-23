@@ -52,7 +52,7 @@ export default function CreateLoanWaiverModal({ onClose, onWaiverCreated }) {
         .from('loans')
         .select('id, loan_number, current_outstanding_balance')
         .eq('client_id', clientId)
-        .eq('status', 'active')
+        .ilike('status', 'active')
         .single(); // Assuming only one active loan per client
 
       if (error && error.code === 'PGRST116') {
