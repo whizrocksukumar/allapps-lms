@@ -149,6 +149,6 @@ const labelStyle = { display: 'block', marginBottom: '0.5rem', fontWeight: 500 }
 const inputStyle = { width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da', boxSizing: 'border-box' };
 const textareaStyle = { width: '100%', height: '80px', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da', fontFamily: 'inherit', boxSizing: 'border-box' };
 const actionsStyle = { display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' };
-const cancelBtnStyle = { padding: '0.5rem 1rem', background: '#e9ecef', border: 'none', borderRadius: '4px', cursor: 'pointer' };
+const cancelBtnStyle = { padding: '0.5rem 1rem', background: '#fff', border: '1px solid #adb5bd', borderRadius: '4px', cursor: 'pointer', color: '#181818', fontWeight: 500 };
 const confirmBtnStyle = { padding: '0.5rem 1rem', background: '#0176d3', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' };
 const errorStyle = { color: '#d32f2f', marginBottom: '1rem', fontSize: '0.9rem' };
