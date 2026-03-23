@@ -47,13 +47,16 @@ export default function CreateLoanWaiverModal({ onClose, onWaiverCreated }) {
   }, [selectedClientId]);
 
   const fetchActiveLoan = async (clientId) => {
+    console.log('[FeeWaiverModal] fetchActiveLoan called with clientId:', clientId);
     try {
       const { data, error } = await supabase
         .from('loans')
-        .select('id, loan_number, current_outstanding_balance')
+        .select('id, loan_number, current_outstanding_balance, status')
         .eq('client_id', clientId)
-        .ilike('status', 'active')
+        .filter('status', 'ilike', '%active%')
         .single(); // Assuming only one active loan per client
+
+      console.log('[FeeWaiverModal] query result:', { data, error });
 
       if (error && error.code === 'PGRST116') {
         // No rows returned
