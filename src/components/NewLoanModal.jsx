@@ -309,7 +309,7 @@ export default function NewLoanModal({ onClose, reloadLoans, initialLoan = null,
           {/* STEP 1: LOAN TYPE */}
           <div style={styles.section}>
             <h4 style={styles.sectionTitle}>Step 1: Loan Type</h4>
-            <div style={{ display: 'flex', gap: '1.5rem' }}>
+            <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexDirection: 'row' }}>
               <label style={styles.radio}>
                 <input 
                   type="radio" 
@@ -451,27 +451,31 @@ export default function NewLoanModal({ onClose, reloadLoans, initialLoan = null,
               </div>
             </div>
 
-            {formData.loanType === 'new' && (
+            {/* Row 1: Loan Amount | Establishment Fee */}
+            <div style={{ display: 'grid', gridTemplateColumns: formData.loanType === 'new' ? '1fr 1fr' : '1fr', gap: '1rem' }}>
+              {formData.loanType === 'new' && (
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Loan Amount *</label>
+                  <input type="number" step="0.01" style={styles.input} value={formData.loan_amount} onChange={e => setFormData({ ...formData, loan_amount: e.target.value })} placeholder="4000" />
+                </div>
+              )}
               <div style={styles.formGroup}>
-                <label style={styles.label}>Loan Amount *</label>
-                <input type="number" step="0.01" style={styles.input} value={formData.loan_amount} onChange={e => setFormData({ ...formData, loan_amount: e.target.value })} placeholder="4000" />
+                <label style={styles.label}>Establishment Fee</label>
+                <input type="number" step="0.01" style={styles.input} value={formData.establishment_fee} onChange={e => setFormData({ ...formData, establishment_fee: e.target.value })} placeholder="Auto-calculated" />
               </div>
-            )}
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Establishment Fee</label>
-              <input type="number" step="0.01" style={styles.input} value={formData.establishment_fee} onChange={e => setFormData({ ...formData, establishment_fee: e.target.value })} placeholder="Auto-calculated" />
             </div>
 
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Repayment Amount *</label>
-              <input type="number" step="0.01" style={styles.input} value={formData.repayment_amount} onChange={e => setFormData({ ...formData, repayment_amount: e.target.value })} placeholder="500" />
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Term *</label>
-              <input type="number" style={styles.input} value={formData.term_months} onChange={e => setFormData({ ...formData, term_months: e.target.value })} placeholder="12" />
-              {recommendedTerm && <div style={styles.hint}>💡 Recommended based on repayment: {recommendedTerm} periods</div>}
+            {/* Row 2: Repayment Amount | Term */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Repayment Amount *</label>
+                <input type="number" step="0.01" style={styles.input} value={formData.repayment_amount} onChange={e => setFormData({ ...formData, repayment_amount: e.target.value })} placeholder="500" />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Term *</label>
+                <input type="number" style={styles.input} value={formData.term_months} onChange={e => setFormData({ ...formData, term_months: e.target.value })} placeholder="12" />
+                {recommendedTerm && <div style={styles.hint}>💡 Recommended based on repayment: {recommendedTerm} periods</div>}
+              </div>
             </div>
           </div>
 
@@ -570,7 +574,7 @@ const styles = {
   formGroup: { marginBottom: '1rem' },
   label: { display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: '#333', fontSize: '0.95rem' },
   input: { width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem', boxSizing: 'border-box' },
-  radio: { display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.95rem' },
+  radio: { display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.95rem', whiteSpace: 'nowrap' },
   dropdown: { position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #ddd', borderTop: 'none', borderRadius: '0 0 6px 6px', maxHeight: '200px', overflowY: 'auto', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 1001 },
   dropdownItem: { padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: '1px solid #f3f2f2', transition: 'background 0.2s' },
   infoBox: { background: '#f0f8ff', border: '1px solid #b3d9ff', borderRadius: '6px', padding: '1rem', marginBottom: '1rem' },
