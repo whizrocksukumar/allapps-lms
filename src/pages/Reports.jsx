@@ -123,21 +123,21 @@ const Reports = () => {
     try {
       const today = new Date().toISOString().split('T')[0];
 
-      // Fetch loans with overdue payments
+      // Fetch active loans where end_date has passed
       const { data: loans, error: loansError } = await supabase
         .from('loans')
         .select(`
-          *,
+          id, loan_number, end_date, status,
           clients (id, first_name, last_name, client_code),
           loan_balances (current_outstanding_balance)
         `)
         .ilike('status', 'active')
-        .lt('next_payment_due_date', today)
-        .not('next_payment_due_date', 'is', null)
-        .order('next_payment_due_date');
+        .lt('end_date', today)
+        .order('end_date');
 
       if (loansError) throw loansError;
 
+      const todayDate = new Date(today);
       const processedLoans = (loans || []).map(loan => {
         const balance = Array.isArray(loan.loan_balances)
           ? loan.loan_balances[0]
@@ -146,9 +146,8 @@ const Reports = () => {
           ? loan.clients[0]
           : loan.clients;
 
-        const dueDate = new Date(loan.next_payment_due_date);
-        const todayDate = new Date(today);
-        const daysOverdue = Math.floor((todayDate - dueDate) / (1000 * 60 * 60 * 24));
+        const endDate = new Date(loan.end_date);
+        const daysOverdue = Math.floor((todayDate - endDate) / (1000 * 60 * 60 * 24));
 
         return {
           ...loan,
@@ -236,7 +235,7 @@ const Reports = () => {
     } else if (activeReport === 'overdue') {
       csvContent = 'Loan Number,Client Name,Due Date,Days Overdue,Outstanding Balance\n';
       overdueLoans.forEach(loan => {
-        csvContent += `"${loan.loan_number}","${loan.client_name}",${loan.next_payment_due_date},${loan.days_overdue},${loan.outstanding_balance}\n`;
+        csvContent += `"${loan.loan_number}","${loan.client_name}",${loan.end_date},${loan.days_overdue},${loan.outstanding_balance}\n`;
       });
       filename = 'overdue_loans.csv';
     } else if (activeReport === 'collections') {
@@ -383,7 +382,7 @@ const Reports = () => {
                         <td style={tdStyle}>{loan.loan_number}</td>
                         <td style={tdStyle}>{loan.client_name}</td>
                         <td style={{ ...tdStyle, color: '#c53030', fontWeight: 600 }}>
-                          {formatDate(loan.next_payment_due_date)}
+                          {formatDate(loan.end_date)}
                         </td>
                         <td style={{ ...tdStyle, color: '#c53030', fontWeight: 600 }}>
                           {loan.days_overdue} days
