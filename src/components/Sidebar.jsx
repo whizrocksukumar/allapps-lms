@@ -100,7 +100,7 @@ export default function Sidebar({ collapsed, setCollapsed, userRole = 'staff' })
           if (!active && !isParentWithChildren) e.currentTarget.style.background = 'transparent';
         }}
       >
-        <span style={{ fontSize: isSubItem ? '1rem' : '1.1rem' }}>{item.icon}</span>
+        {!isParentWithChildren && <span style={{ fontSize: isSubItem ? '1rem' : '1.1rem' }}>{item.icon}</span>}
         {!collapsed && <span style={{ flex: 1, minWidth: 0 }}>{item.label}</span>}
       </div>
     );

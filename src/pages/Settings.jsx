@@ -101,6 +101,7 @@ export default function Settings() {
   // Loan Products state
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
 
   // Fee Rules state
@@ -116,7 +117,9 @@ export default function Settings() {
   // ── Loan Products ──────────────────────────────────────────────────────────
   const fetchProducts = async () => {
     setProductsLoading(true);
-    const { data } = await supabase.from('loan_products').select('*').order('name');
+    setProductsError('');
+    const { data, error } = await supabase.from('loan_products').select('*').order('name');
+    if (error) setProductsError(error.message);
     setProducts(data || []);
     setProductsLoading(false);
   };
@@ -205,46 +208,59 @@ export default function Settings() {
         <div style={card}>
           {productsLoading ? (
             <p style={loading}>Loading products...</p>
-          ) : products.length === 0 ? (
-            <p style={empty}>No loan products yet. Click "+ Add Product" to create one.</p>
           ) : (
-            <table style={tbl.table}>
-              <thead>
-                <tr style={tbl.head}>
-                  <th style={tbl.th}>Name</th>
-                  <th style={tbl.th}>Interest Rate</th>
-                  <th style={tbl.th}>Min Amount</th>
-                  <th style={tbl.th}>Max Amount</th>
-                  <th style={tbl.th}>Term (mo)</th>
-                  <th style={tbl.th}>Status</th>
-                  <th style={tbl.th}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map(p => (
-                  <tr key={p.id} style={tbl.row}>
-                    <td style={tbl.td}><strong>{p.name}</strong></td>
-                    <td style={tbl.td}>{p.interest_rate}%</td>
-                    <td style={tbl.td}>{p.min_amount != null ? `$${p.min_amount.toLocaleString()}` : '—'}</td>
-                    <td style={tbl.td}>{p.max_amount != null ? `$${p.max_amount.toLocaleString()}` : '—'}</td>
-                    <td style={tbl.td}>{p.term_months ?? '—'}</td>
-                    <td style={tbl.td}>
-                      <span style={p.status === 'active' ? badge.active : badge.inactive}>
-                        {p.status}
-                      </span>
-                    </td>
-                    <td style={tbl.td}>
-                      <button
-                        onClick={() => toggleStatus(p)}
-                        style={p.status === 'active' ? btn.deactivate : btn.activate}
-                      >
-                        {p.status === 'active' ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </td>
+            <>
+              {productsError && (
+                <div style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                  Error loading loan products: {productsError}
+                </div>
+              )}
+              <table style={tbl.table}>
+                <thead>
+                  <tr style={tbl.head}>
+                    <th style={tbl.th}>Name</th>
+                    <th style={tbl.th}>Interest Rate</th>
+                    <th style={tbl.th}>Min Amount</th>
+                    <th style={tbl.th}>Max Amount</th>
+                    <th style={tbl.th}>Term (mo)</th>
+                    <th style={tbl.th}>Status</th>
+                    <th style={tbl.th}>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {products.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" style={{ ...tbl.td, textAlign: 'center', color: '#9ca3af', fontStyle: 'italic', padding: '2rem' }}>
+                        No loan products yet. Click "+ Add Product" to create one.
+                      </td>
+                    </tr>
+                  ) : (
+                    products.map(p => (
+                      <tr key={p.id} style={tbl.row}>
+                        <td style={tbl.td}><strong>{p.name}</strong></td>
+                        <td style={tbl.td}>{p.interest_rate}%</td>
+                        <td style={tbl.td}>{p.min_amount != null ? `$${p.min_amount.toLocaleString()}` : '—'}</td>
+                        <td style={tbl.td}>{p.max_amount != null ? `$${p.max_amount.toLocaleString()}` : '—'}</td>
+                        <td style={tbl.td}>{p.term_months ?? '—'}</td>
+                        <td style={tbl.td}>
+                          <span style={p.status === 'active' ? badge.active : badge.inactive}>
+                            {p.status}
+                          </span>
+                        </td>
+                        <td style={tbl.td}>
+                          <button
+                            onClick={() => toggleStatus(p)}
+                            style={p.status === 'active' ? btn.deactivate : btn.activate}
+                          >
+                            {p.status === 'active' ? 'Deactivate' : 'Activate'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       )}
