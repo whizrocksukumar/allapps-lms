@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "../services/supabaseService";
+import PageHeader from "../components/PageHeader";
 import FeeWaiverModal from "../components/FeeWaiverModal";
 import CustomFeeModal from "../components/CustomFeeModal";
 
@@ -84,41 +85,29 @@ export default function FeeManagementPage() {
 
     return (
         <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
-            <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '2rem',
-                background: '#fff',
-                padding: '1.5rem',
-                borderRadius: '8px',
-                borderTop: '3px solid #0176d3',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
-            }}>
-                <div>
-                    <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '600', color: '#181818' }}>Fee Management</h1>
-                    <p style={{ margin: '0.25rem 0 0', fontSize: '0.9rem', color: '#706e6b' }}>Manage fee applications, waivers, and custom charges.</p>
-                </div>
-
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <select
-                        style={selectStyle}
-                        value={selectedLoanId}
-                        onChange={e => setSelectedLoanId(e.target.value)}
-                    >
-                        <option value="all">All Loans</option>
-                        {loans.map(loan => (
-                            <option key={loan.id} value={loan.id}>
-                                {loan.loan_number} - {loan.clients?.first_name} {loan.clients?.last_name}
-                            </option>
-                        ))}
-                    </select>
-
-                    <button onClick={handleAddCustomClick} style={addBtnStyle}>
-                        + Add Custom Fee
-                    </button>
-                </div>
-            </div>
+            <PageHeader
+                title="Fee Management"
+                subtitle="Manage fee applications, waivers, and custom charges."
+                actions={
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        <select
+                            style={selectStyle}
+                            value={selectedLoanId}
+                            onChange={e => setSelectedLoanId(e.target.value)}
+                        >
+                            <option value="all">All Loans</option>
+                            {loans.map(loan => (
+                                <option key={loan.id} value={loan.id}>
+                                    {loan.loan_number} - {loan.clients?.first_name} {loan.clients?.last_name}
+                                </option>
+                            ))}
+                        </select>
+                        <button onClick={handleAddCustomClick} style={addBtnStyle}>
+                            + Add Custom Fee
+                        </button>
+                    </div>
+                }
+            />
 
             {/* TABS */}
             <div style={tabsContainerStyle}>

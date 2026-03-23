@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseService';
+import PageHeader from '../components/PageHeader';
 
 export default function LoanWaiversDashboard() {
   // State Management
@@ -222,30 +223,11 @@ export default function LoanWaiversDashboard() {
       minHeight: '100vh',
       padding: '2rem',
     },
-    header: {
-      backgroundColor: '#fff',
-      padding: '2rem',
-      borderRadius: '8px',
-      marginBottom: '2rem',
-      borderTop: '3px solid #0176d3',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
-    },
-    headerTitle: {
-      fontSize: '1.5rem',
-      fontWeight: 600,
-      margin: 0,
-      color: '#181818',
-    },
-    headerSubtitle: {
-      fontSize: '0.9rem',
-      marginTop: '0.25rem',
-      color: '#706e6b',
-    },
     statsContainer: {
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
       gap: '1rem',
-      marginTop: '1.5rem',
+      marginBottom: '2rem',
     },
     statCard: {
       backgroundColor: '#f8f9fa',
@@ -510,32 +492,29 @@ export default function LoanWaiversDashboard() {
 
   return (
     <div style={styles.container}>
-      {/* Header */}
-      <div style={styles.header}>
-        <h1 style={styles.headerTitle}>Loan Waivers &amp; Adjustments</h1>
-        <p style={styles.headerSubtitle}>
-          Manage loan waivers, approvals, and adjustments. Admin-only access.
-        </p>
+      <PageHeader
+        title="Loan Waivers & Adjustments"
+        subtitle="Manage loan waivers, approvals, and adjustments. Admin-only access."
+      />
 
-        {/* Stats */}
-        <div style={styles.statsContainer}>
-          <div style={styles.statCard}>
-            <div style={styles.statNumber}>{stats.pendingCount}</div>
-            <div style={styles.statLabel}>Pending Waivers</div>
-            {stats.totalPending > 0 && (
-              <div style={{ ...styles.statLabel, marginTop: '0.5rem', fontSize: '0.85rem' }}>
-                Total: ${stats.totalPending.toFixed(2)}
-              </div>
-            )}
-          </div>
-          <div style={styles.statCard}>
-            <div style={styles.statNumber}>{stats.approvedCount}</div>
-            <div style={styles.statLabel}>Approved (Pending Apply)</div>
-          </div>
-          <div style={styles.statCard}>
-            <div style={styles.statNumber}>{stats.executedCount}</div>
-            <div style={styles.statLabel}>Executed Waivers</div>
-          </div>
+      {/* Stats */}
+      <div style={styles.statsContainer}>
+        <div style={styles.statCard}>
+          <div style={styles.statNumber}>{stats.pendingCount}</div>
+          <div style={styles.statLabel}>Pending Waivers</div>
+          {stats.totalPending > 0 && (
+            <div style={{ ...styles.statLabel, marginTop: '0.5rem', fontSize: '0.85rem' }}>
+              Total: ${stats.totalPending.toFixed(2)}
+            </div>
+          )}
+        </div>
+        <div style={styles.statCard}>
+          <div style={styles.statNumber}>{stats.approvedCount}</div>
+          <div style={styles.statLabel}>Approved (Pending Apply)</div>
+        </div>
+        <div style={styles.statCard}>
+          <div style={styles.statNumber}>{stats.executedCount}</div>
+          <div style={styles.statLabel}>Executed Waivers</div>
         </div>
       </div>
 
