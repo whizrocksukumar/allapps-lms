@@ -25,16 +25,16 @@ export const useLoans = () => {
                     start_date,
                     end_date,
                     status,
-                    term,
+                    term_months,
                     repayment_frequency,
-                    instalments_due,
                     loan_type,
                     client_id,
                     clients (
                         id,
                         first_name,
                         last_name,
-                        client_code
+                        client_code,
+                        company_name
                     ),
                     loan_balances (
                         current_outstanding_balance,
@@ -50,7 +50,7 @@ export const useLoans = () => {
             if (loansError) throw loansError;
 
             // Transform data structure for UI
-            const formattedLoans = data.map(loan => {
+            const formattedLoans = (data || []).map(loan => {
                 const balance = loan.loan_balances ? loan.loan_balances : {};
                 // Handle 1:1 relationship - loan_balances should be an object or array with one item
                 const balanceData = Array.isArray(balance) ? (balance[0] || {}) : balance;
