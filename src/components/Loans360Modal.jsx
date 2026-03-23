@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseService';
 import { formatDate, getTransactionTypeName, exportTransactionsToCSV, exportScheduleToCSV } from '../utils/transactionHelpers';
 import StatementView from './StatementView';
+import { generateLoanAgreement } from './LoanAgreementGenerator';
 
 export default function Loans360Modal({ loan: initialLoan, onClose }) {
   const [loan, setLoan] = useState(null);
@@ -134,6 +135,7 @@ export default function Loans360Modal({ loan: initialLoan, onClose }) {
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <button onClick={() => setShowStatement(true)} style={actionBtnStyle}>Print Statement</button>
+            <button onClick={() => generateLoanAgreement(loan, client)} style={actionBtnStyle}>Generate Agreement</button>
             <button onClick={onClose} style={closeBtnStyle}>×</button>
           </div>
         </div>
