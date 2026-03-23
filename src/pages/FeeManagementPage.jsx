@@ -76,10 +76,6 @@ export default function FeeManagementPage() {
     };
 
     const handleAddCustomClick = () => {
-        if (!selectedLoanId || selectedLoanId === 'all') {
-            alert("Please select a specific loan to add a custom fee.");
-            return;
-        }
         setCustomFeeModalOpen(true);
     };
 
@@ -211,8 +207,8 @@ export default function FeeManagementPage() {
 
             {customFeeModalOpen && (
                 <CustomFeeModal
-                    loanId={selectedLoanId}
-                    clientId={loans.find(l => l.id === selectedLoanId)?.client_id}
+                    loans={loans}
+                    initialLoanId={selectedLoanId !== 'all' ? selectedLoanId : ''}
                     onClose={() => setCustomFeeModalOpen(false)}
                     onFeeAdded={fetchFees}
                 />

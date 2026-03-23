@@ -48,8 +48,8 @@ export default function Sidebar({ collapsed, setCollapsed, userRole = 'staff' })
       { key: '/admin/waivers', label: 'Loan Waivers', icon: '💼' },
       { key: '/fees', label: 'Fees Management', icon: '🧾' },
       { key: '/admin/expenses', label: 'Expenses', icon: '💸' },
+      { key: '/admin/pl', label: 'P&L', icon: '📈' },
       { key: '/reports', label: 'Reports', icon: '📊' },
-      // { key: '/admin/pl', label: 'P&L', icon: '📈' }, // Keep for later
     ],
   };
 

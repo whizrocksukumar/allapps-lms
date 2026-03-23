@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../services/supabaseService';
 
-export default function CustomFeeModal({ loanId, clientId, onClose, onFeeAdded }) {
+export default function CustomFeeModal({ loans = [], initialLoanId = '', onClose, onFeeAdded }) {
+    const [selectedLoanId, setSelectedLoanId] = useState(initialLoanId);
     const [feeType, setFeeType] = useState('adhoc');
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
@@ -18,6 +19,10 @@ export default function CustomFeeModal({ loanId, clientId, onClose, onFeeAdded }
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!selectedLoanId) {
+            setError("Please select a loan.");
+            return;
+        }
         if (!amount || !description) {
             setError("Amount and Description are required.");
             return;
@@ -28,13 +33,13 @@ export default function CustomFeeModal({ loanId, clientId, onClose, onFeeAdded }
 
         try {
             const feeAmount = parseFloat(amount);
+            const loan = loans.find(l => l.id === selectedLoanId);
 
-            // 1. Insert Fee Application
             const { error: feeError } = await supabase
                 .from('fee_applications')
                 .insert({
-                    loan_id: loanId,
-                    client_id: clientId, // V4: client_id
+                    loan_id: selectedLoanId,
+                    client_id: loan?.client_id || null,
                     fee_type: feeType,
                     amount: feeAmount,
                     status: 'pending',
@@ -43,12 +48,11 @@ export default function CustomFeeModal({ loanId, clientId, onClose, onFeeAdded }
 
             if (feeError) throw feeError;
 
-            // 2. Log Transaction
             const { error: txnError } = await supabase
                 .from('transactions')
                 .insert({
-                    loan_id: loanId,
-                    txn_type: 'CFEE', // Custom Fee
+                    loan_id: selectedLoanId,
+                    txn_type: 'CFEE',
                     amount: feeAmount,
                     txn_date: new Date().toISOString().split('T')[0],
                     notes: `Custom Fee: ${feeType} - ${description}`,
@@ -57,8 +61,6 @@ export default function CustomFeeModal({ loanId, clientId, onClose, onFeeAdded }
                 });
 
             if (txnError) throw txnError;
-
-            // 3. Update Balance? Use fee_applications ONLY per V4.
 
             onFeeAdded();
             onClose();
@@ -76,6 +78,22 @@ export default function CustomFeeModal({ loanId, clientId, onClose, onFeeAdded }
             <div style={modalStyle}>
                 <h3 style={titleStyle}>Add Custom Fee</h3>
                 <form onSubmit={handleSubmit}>
+
+                    <div style={formGroupStyle}>
+                        <label style={labelStyle}>Loan *</label>
+                        <select
+                            style={inputStyle}
+                            value={selectedLoanId}
+                            onChange={e => setSelectedLoanId(e.target.value)}
+                        >
+                            <option value="">Select a loan...</option>
+                            {loans.map(loan => (
+                                <option key={loan.id} value={loan.id}>
+                                    {loan.loan_number} — {loan.clients?.first_name} {loan.clients?.last_name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
 
                     <div style={formGroupStyle}>
                         <label style={labelStyle}>Fee Type</label>
@@ -123,14 +141,13 @@ export default function CustomFeeModal({ loanId, clientId, onClose, onFeeAdded }
     );
 }
 
-// Reuse similar styles
 const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1100 };
-const modalStyle = { background: '#fff', padding: '2rem', borderRadius: '8px', width: '400px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' };
+const modalStyle = { background: '#fff', padding: '2rem', borderRadius: '8px', width: '440px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' };
 const titleStyle = { marginTop: 0, color: '#0176d3' };
 const formGroupStyle = { marginBottom: '1rem' };
 const labelStyle = { display: 'block', marginBottom: '0.5rem', fontWeight: 500 };
-const inputStyle = { width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da' };
-const textareaStyle = { width: '100%', height: '80px', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da', fontFamily: 'inherit' };
+const inputStyle = { width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da', boxSizing: 'border-box' };
+const textareaStyle = { width: '100%', height: '80px', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da', fontFamily: 'inherit', boxSizing: 'border-box' };
 const actionsStyle = { display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' };
 const cancelBtnStyle = { padding: '0.5rem 1rem', background: '#e9ecef', border: 'none', borderRadius: '4px', cursor: 'pointer' };
 const confirmBtnStyle = { padding: '0.5rem 1rem', background: '#0176d3', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' };

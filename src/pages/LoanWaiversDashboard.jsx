@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabaseService';
+import { supabase, supabaseUrl } from '../services/supabaseService';
 import PageHeader from '../components/PageHeader';
 
 export default function LoanWaiversDashboard() {
@@ -50,7 +50,7 @@ export default function LoanWaiversDashboard() {
       const { data: loansData } = await supabase
         .from('loans')
         .select(`id, loan_number, client_id, status, annual_interest_rate, clients(first_name, last_name, client_code), loan_balances(current_outstanding_balance, principal_outstanding, outstanding_interest, outstanding_fees)`)
-        .eq('status', 'active')
+        .ilike('status', 'active')
         .order('loan_number');
 
       setLoans(loansData || []);
@@ -104,7 +104,7 @@ export default function LoanWaiversDashboard() {
 
     try {
       const response = await fetch(
-        `${supabase.url}/functions/v1/create-loan-waiver`,
+        `${supabaseUrl}/functions/v1/create-loan-waiver`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -153,7 +153,7 @@ export default function LoanWaiversDashboard() {
 
     try {
       const response = await fetch(
-        `${supabase.url}/functions/v1/approve-loan-waiver`,
+        `${supabaseUrl}/functions/v1/approve-loan-waiver`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -184,7 +184,7 @@ export default function LoanWaiversDashboard() {
 
     try {
       const response = await fetch(
-        `${supabase.url}/functions/v1/apply-loan-waiver`,
+        `${supabaseUrl}/functions/v1/apply-loan-waiver`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
