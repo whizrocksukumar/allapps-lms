@@ -20,6 +20,7 @@ import ProfitAndLoss from './pages/ProfitAndLoss';
 import ComplianceAuditControls from './pages/ComplianceAuditControls';
 import AccountingFinancialReporting from './pages/AccountingFinancialReporting';
 import Reports from './pages/Reports';
+import Settings from './pages/Settings';
 
 function ProtectedLayout({ session }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -48,6 +49,7 @@ function ProtectedLayout({ session }) {
             <Route path="/admin/waivers" element={<LoanWaiversDashboard />} />
             <Route path="/admin/expenses" element={<Expenses />} />
             <Route path="/admin/pl" element={<ProfitAndLoss />} />
+            <Route path="/admin/settings" element={<Settings />} />
             <Route path="/admin/compliance" element={<ComplianceAuditControls />} />
             <Route path="/admin/accounting" element={<AccountingFinancialReporting />} />
             <Route path="*" element={<Navigate to="/clients" replace />} />

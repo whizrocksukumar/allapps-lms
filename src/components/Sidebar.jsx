@@ -50,6 +50,7 @@ export default function Sidebar({ collapsed, setCollapsed, userRole = 'staff' })
       { key: '/admin/expenses', label: 'Expenses', icon: '💸' },
       { key: '/admin/pl', label: 'P&L', icon: '📈' },
       { key: '/reports', label: 'Reports', icon: '📊' },
+      { key: '/admin/settings', label: 'Settings', icon: '⚙️' },
     ],
   };
 
