@@ -67,37 +67,37 @@ export default function Sidebar({ collapsed, setCollapsed, userRole = 'staff' })
 
   const renderMenuItem = (item, isSubItem = false) => {
     const active = isActive(item.key);
+    const isParentWithChildren = !isSubItem && item.children && item.children.length > 0;
+
     return (
       <div
         key={item.key}
-        onClick={() => handleNavigation(item.key)}
+        onClick={() => { if (!isParentWithChildren) handleNavigation(item.key); }}
         style={{
           padding: isSubItem ? '0.65rem 1rem 0.65rem 1.5rem' : '0.75rem 1rem',
-          marginBottom: isSubItem ? '0.3rem' : '0.5rem',
-          cursor: 'pointer',
-          backgroundColor: active ? '#0176d3' : 'transparent',
-          color: active ? '#fff' : '#181818',
+          marginBottom: isSubItem ? '0.3rem' : '0.25rem',
+          cursor: isParentWithChildren ? 'default' : 'pointer',
+          backgroundColor: active && !isParentWithChildren ? '#0176d3' : 'transparent',
+          color: isParentWithChildren ? '#706e6b' : active ? '#fff' : '#181818',
           borderRadius: '6px',
           textAlign: collapsed ? 'center' : 'left',
-          fontSize: isSubItem ? '0.875rem' : '0.95rem',
+          fontSize: isSubItem ? '0.875rem' : isParentWithChildren ? '0.75rem' : '0.95rem',
           transition: 'all 0.2s ease',
           display: 'flex',
           alignItems: 'center',
           gap: '0.75rem',
-          fontWeight: isSubItem ? 400 : 500,
+          fontWeight: isParentWithChildren ? 600 : isSubItem ? 400 : 500,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
+          textTransform: isParentWithChildren ? 'uppercase' : 'none',
+          letterSpacing: isParentWithChildren ? '0.05em' : 'normal',
         }}
         onMouseEnter={(e) => {
-          if (!active) {
-            e.currentTarget.style.background = '#f5f5f5';
-          }
+          if (!active && !isParentWithChildren) e.currentTarget.style.background = '#f5f5f5';
         }}
         onMouseLeave={(e) => {
-          if (!active) {
-            e.currentTarget.style.background = 'transparent';
-          }
+          if (!active && !isParentWithChildren) e.currentTarget.style.background = 'transparent';
         }}
       >
         <span style={{ fontSize: isSubItem ? '1rem' : '1.1rem' }}>{item.icon}</span>
@@ -110,8 +110,8 @@ export default function Sidebar({ collapsed, setCollapsed, userRole = 'staff' })
     return (
       <div key={section.key} style={{ marginBottom: '0.5rem' }}>
         {renderMenuItem(section)}
-        {section.children && !collapsed && (
-          <div style={{ marginTop: '0.25rem' }}>
+        {section.children && section.children.length > 0 && !collapsed && (
+          <div style={{ marginTop: '0.125rem' }}>
             {section.children.map(child => renderMenuItem(child, true))}
           </div>
         )}
