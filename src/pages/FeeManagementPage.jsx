@@ -89,14 +89,15 @@ export default function FeeManagementPage() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 marginBottom: '2rem',
-                background: '#014486', // Blue background for header
+                background: '#fff',
                 padding: '1.5rem',
                 borderRadius: '8px',
-                color: '#fff' // White text
+                borderTop: '3px solid #0176d3',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
             }}>
                 <div>
-                    <h1 style={{ margin: 0, fontSize: '1.8rem', color: '#fff' }}>Fee Management</h1>
-                    <p style={{ margin: '0.5rem 0 0', opacity: 0.9, fontSize: '0.9rem' }}>Manage fee applications, waivers, and custom charges.</p>
+                    <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '600', color: '#181818' }}>Fee Management</h1>
+                    <p style={{ margin: '0.25rem 0 0', fontSize: '0.9rem', color: '#706e6b' }}>Manage fee applications, waivers, and custom charges.</p>
                 </div>
 
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -232,25 +233,18 @@ export default function FeeManagementPage() {
 }
 
 // Styles
-const selectStyle = { padding: '0.5rem', borderRadius: '4px', border: 'none', minWidth: '200px', height: '38px' };
-// Updated 'Add Custom Fee' button style
+const selectStyle = { padding: '0.5rem 0.75rem', borderRadius: '4px', border: '1px solid #d1d5db', minWidth: '200px', height: '38px', fontSize: '0.875rem', color: '#181818' };
 const addBtnStyle = {
-    background: '#0176d3', // Uniform Blue
+    background: '#0176d3',
     color: '#fff',
-    border: '1px solid #fff', // Add border for visibility against blue header? Or just match theme
-    // Actually typically on blue header, a white button or lighter blue button is used. 
-    // But user asked for #0176d3 button while header is #014486 (Dark Blue). This provides contrast.
+    border: 'none',
     padding: '0.5rem 1rem',
     borderRadius: '4px',
     cursor: 'pointer',
     fontWeight: 600,
     whiteSpace: 'nowrap',
-    minWidth: '160px',
     height: '38px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+    fontSize: '0.875rem',
 };
 
 const tabsContainerStyle = { display: 'flex', borderBottom: '1px solid #ddd', marginBottom: '1rem' };
